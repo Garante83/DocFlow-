@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build artifacts
+backend/server
+backend/server.log
+backend/web/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Frontend build
+frontend/dokumentenscanner/dist/
+frontend/dokumentenscanner/dist-ssr/
+
+# TLS certificates (regenerated per host)
+backend/cmd/server/cert.pem
+backend/cmd/server/key.pem
+*.pem
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage.out
+coverage.html
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Debug
+*.log
+npm-debug.log*
+
+# Temp
+/tmp/
