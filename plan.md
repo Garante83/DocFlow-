@@ -301,7 +301,15 @@ Alle Aufgaben in Phase 1 sind abgeschlossen:
 
 ---
 
-## Phase 4: Infrastruktur und Stabilitat
+## Phase 4: Infrastruktur und Stabilitat ✅
+
+Alle Aufgaben in Phase 4 sind abgeschlossen:
+
+| Aufgabe | Status |
+|---------|--------|
+| 4.1 Graceful Shutdown | ✅ |
+| 4.2 Strukturiertes Logging | ✅ |
+| 4.3 Makefile finalisieren | ✅ |
 
 ---
 
@@ -343,6 +351,9 @@ Alle Aufgaben in Phase 1 sind abgeschlossen:
 - Cleanup-Goroutine Leak ✅
 - Mutex-Deadlock ✅
 - WebSocket Timeouts ✅
+- WebSocket Origin-Check (parseFlags DefValue) ✅
+- Doppelte WebSocket-Handler ✅
+- DesktopView Handler-Leak ✅
 
 ---
 
@@ -363,9 +374,10 @@ Alle Aufgaben in Phase 1 sind abgeschlossen:
 | 3.7 | Config-Tests | ✅ | Hoch | 1-2h | 3.0 |
 | 3.8 | Docker | ✅ | Hoch | 1h | 3.0,3.5 |
 | 3.9 | Dokumentation | ✅ | Hoch | 1-2h | 3.0-3.8 |
-| 4.1 | Graceful Shutdown | ⬜ | Mittel | 1h | 3.0-3.2 |
-| 4.2 | Strukturiertes Logging | ⬜ | Mittel | 2-3h | 3.1 |
-| 4.3 | Makefile final | ⬜ | Mittel | 0.5h | 3.6 |
+| 4.1 | Graceful Shutdown | ✅ | Mittel | 1h | 3.0-3.2 |
+| 4.2 | Strukturiertes Logging | ✅ | Mittel | 2-3h | 3.1 |
+| 4.3 | Makefile final | ✅ | Mittel | 0.5h | 3.6 |
+| 5.0 | WebSocket-Hub Tests | ✅ | Hoch | 2h | Keine |
 
 ---
 
@@ -522,7 +534,7 @@ Kritische Lucken in: cmd/server, websocket, handlers/qrcode, handlers/websocket
 
 | Phase | Aufgabe | Status | Prioritat | Aufwand | Abhangigkeiten |
 |-------|---------|--------|-----------|--------|----------------|
-| 5.0 | WebSocket-Hub Tests | ⬜ | Hoch | 2h | Keine |
+| 5.0 | WebSocket-Hub Tests | ✅ | Hoch | 2h | Keine |
 | 5.1 | WebSocket-Handler Tests | ⬜ | Hoch | 2h | 3.4 |
 | 5.2 | Handler QRCode Tests | ⬜ | Hoch | 1h | 3.0 |
 | 5.3 | Main/Server Tests | ⬜ | Hoch | 1h | 3.1 |
@@ -561,8 +573,8 @@ Kritische Lucken in: cmd/server, websocket, handlers/qrcode, handlers/websocket
 3. `http.Server.Shutdown()` nutzen
 
 **Akzeptanzkriterien:**
-- [ ] Server endet sauber
-- [ ] Offene Verbindungen werden abgeschlossen
+- [x] Server endet sauber
+- [x] Offene Verbindungen werden abgeschlossen
 
 **Abhangigkeiten:** 3.0-3.2 | **Aufwand:** 1h
 
@@ -578,8 +590,8 @@ Kritische Lucken in: cmd/server, websocket, handlers/qrcode, handlers/websocket
 2. Sinnvolle Log-Levels nutzen
 
 **Akzeptanzkriterien:**
-- [ ] Keine log.Printf mehr
-- [ ] Alle Logs strukturiert
+- [x] Keine log.Printf mehr
+- [x] Alle Logs strukturiert
 
 **Abhangigkeiten:** 3.1 | **Aufwand:** 2-3h
 
@@ -594,6 +606,6 @@ Kritische Lucken in: cmd/server, websocket, handlers/qrcode, handlers/websocket
 1. Alle Ziele prufen und anpassen
 
 **Akzeptanzkriterien:**
-- [ ] `make all` funktioniert
+- [x] `make all` funktioniert
 
 **Abhangigkeiten:** 3.6 | **Aufwand:** 0.5h
