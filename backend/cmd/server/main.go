@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"dokumentenscanner/internal/config"
 	"dokumentenscanner/internal/handlers"
@@ -17,7 +22,6 @@ import (
 //go:embed *
 var frontendFS embed.FS
 
-// Port wird jetzt aus der Config geladen, Default falls nicht gesetzt
 func getPort(cfg *config.Config) string {
 	return ":" + cfg.Server.Port
 }
@@ -50,6 +54,7 @@ func main() {
 
 	// 3. Session-Store mit Config-Werten initialisieren
 	sessionStore := session.NewStore()
+	cleanupStop := make(chan struct{})
 	go sessionStore.StartCleanup(cfg.Session.CleanupInterval)
 
 	// 4. WebSocket-Hub initialisieren
@@ -141,16 +146,39 @@ func main() {
 	defer os.Remove(certFile)
 	defer os.Remove(keyFile)
 
-	port := getPort(cfg)
-	slog.Info("Server starting", "addr", "0.0.0.0"+port, "port", cfg.Server.Port)
-	slog.Info("Frontend available at https://localhost" + port)
-	if err := r.RunTLS(port, certFile, keyFile); err != nil {
+	// 7. HTTP-Server erstellen
+	srv := &http.Server{
+		Addr:    getPort(cfg),
+		Handler: r,
+	}
+
+	// 8. Graceful Shutdown starten
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-quit
+		slog.Info("Server shutting down...")
+		close(cleanupStop)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := srv.Shutdown(ctx); err != nil {
+			slog.Error("Server forced to shutdown", "error", err)
+		}
+		slog.Info("Server stopped")
+	}()
+
+	// 9. Server starten
+	slog.Info("Server starting", "addr", "0.0.0.0"+srv.Addr, "port", cfg.Server.Port)
+	slog.Info("Frontend available at https://localhost" + srv.Addr)
+	if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
 		slog.Error("Server failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-// setupLogger richtet den strukturierten Logger basierend auf der Config ein
 func setupLogger(cfg *config.Config) {
 	level := slog.LevelInfo
 	switch cfg.Logging.Level {

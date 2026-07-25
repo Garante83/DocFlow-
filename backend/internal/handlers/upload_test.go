@@ -31,7 +31,7 @@ func setupUploadTestRouter(t testing.TB) *gin.Engine {
 	store := session.NewStore()
 	hub := ws.NewHub()
 	go hub.Run()
-	
+
 	// Ensure hub is stopped after test completes
 	t.Cleanup(func() {
 		hub.Stop()

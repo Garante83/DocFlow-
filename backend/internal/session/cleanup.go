@@ -1,7 +1,7 @@
 package session
 
 import (
-	"log"
+	"log/slog"
 	"time"
 )
 
@@ -36,7 +36,7 @@ func (s *Store) cleanupExpiredSessions() {
 	now := time.Now()
 	for id, session := range s.sessions {
 		if session.Status == StatusDownloaded || now.After(session.ExpiresAt) {
-			log.Printf("Cleaning up session %s (status: %s, expired: %v)", id, session.Status, now.After(session.ExpiresAt))
+			slog.Debug("Cleaning up session", "session_id", id, "status", session.Status, "expired", now.After(session.ExpiresAt))
 			delete(s.sessions, id)
 		}
 	}

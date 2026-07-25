@@ -9,8 +9,8 @@ import (
 // HandlerDeps enthaelt alle Abhaengigkeiten fur die Handler
 type HandlerDeps struct {
 	SessionStore *session.Store
-	WebSocketHub  *websocket.Hub
-	Config        *config.Config
+	WebSocketHub *websocket.Hub
+	Config       *config.Config
 }
 
 // deps ist die globale Instanz der Handler-Deps
@@ -22,8 +22,8 @@ var deps *HandlerDeps
 func Init(store *session.Store, hub *websocket.Hub, cfg *config.Config) {
 	deps = &HandlerDeps{
 		SessionStore: store,
-		WebSocketHub:  hub,
-		Config:        cfg,
+		WebSocketHub: hub,
+		Config:       cfg,
 	}
 }
 

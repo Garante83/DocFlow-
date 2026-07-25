@@ -57,7 +57,7 @@ func UploadHandler(c *gin.Context) {
 		// Fallback to default allowed types
 		allowedTypes = []string{"image/jpeg", "image/png", "image/webp"}
 	}
-	
+
 	// Note: For multipart/form-data uploads, the Content-Type of the individual file part
 	// is stored in the part header, not the request header. We validate the actual image
 	// format after decoding, which is more reliable than checking the Content-Type header.
@@ -68,7 +68,7 @@ func UploadHandler(c *gin.Context) {
 		maxFileSizeMB = 10 // Default 10MB
 	}
 	maxFileSize := maxFileSizeMB << 20
-	
+
 	// Check file size against config
 	if header.Size > int64(maxFileSize) {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -100,7 +100,7 @@ func UploadHandler(c *gin.Context) {
 		"webp": "image/webp",
 	}
 	imageMIMEType := imageFormatToMIME[format]
-	
+
 	if imageMIMEType == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("image format '%s' is not supported", format),
@@ -118,7 +118,7 @@ func UploadHandler(c *gin.Context) {
 	}
 	if !mimeTypeAllowed {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("image format '%s' (MIME: %s) is not allowed. Allowed types: %s", 
+			"error": fmt.Sprintf("image format '%s' (MIME: %s) is not allowed. Allowed types: %s",
 				format, imageMIMEType, strings.Join(allowedTypes, ", ")),
 		})
 		return

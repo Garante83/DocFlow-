@@ -26,7 +26,7 @@ func setupTestRouter(t testing.TB) *gin.Engine {
 	store := session.NewStore()
 	hub := ws.NewHub()
 	go hub.Run()
-	
+
 	// Ensure hub is stopped after test completes
 	t.Cleanup(func() {
 		hub.Stop()
@@ -112,18 +112,18 @@ func TestQRCodeHandler(t *testing.T) {
 	req, _ := http.NewRequest("POST", "/api/session", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	
+
 	require.Equal(t, http.StatusOK, w.Code)
-	
+
 	var sessionResp map[string]string
 	json.Unmarshal(w.Body.Bytes(), &sessionResp)
 	sessionID := sessionResp["session_id"]
-	
+
 	// Now test QRCodeHandler with the valid session
 	req = httptest.NewRequest("GET", "/api/session/"+sessionID+"/qrcode", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	
+
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "image/png", w.Header().Get("Content-Type"))
 	assert.NotEmpty(t, w.Body.Bytes(), "QR code should not be empty")
@@ -139,7 +139,7 @@ func TestQRCodeHandlerInvalidSession(t *testing.T) {
 	req := httptest.NewRequest("GET", "/api/session/"+uuid.New().String()+"/qrcode", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	
+
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 

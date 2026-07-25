@@ -23,10 +23,10 @@ type Config struct {
 	} `mapstructure:"server" json:"server"`
 
 	Session struct {
-		Timeout         time.Duration `mapstructure:"timeout" json:"timeout"`
-		CleanupInterval time.Duration `mapstructure:"cleanup_interval" json:"cleanup_interval"`
+		Timeout           time.Duration `mapstructure:"timeout" json:"timeout"`
+		CleanupInterval   time.Duration `mapstructure:"cleanup_interval" json:"cleanup_interval"`
 		MaxFailedAttempts int           `mapstructure:"max_failed_attempts" json:"max_failed_attempts"`
-		LockoutDuration  time.Duration `mapstructure:"lockout_duration" json:"lockout_duration"`
+		LockoutDuration   time.Duration `mapstructure:"lockout_duration" json:"lockout_duration"`
 	} `mapstructure:"session" json:"session"`
 
 	Upload struct {
@@ -50,33 +50,33 @@ type Config struct {
 // DefaultConfig gibt Standardwerte zuruck
 func DefaultConfig() *Config {
 	cfg := &Config{}
-	
+
 	// Server
 	cfg.Server.Port = "8082"
 	cfg.Server.Host = "0.0.0.0"
 	cfg.Server.TLSCertPath = ""
 	cfg.Server.TLSKeyPath = ""
-	
+
 	// Session
 	cfg.Session.Timeout = 1 * time.Hour
 	cfg.Session.CleanupInterval = 5 * time.Minute
 	cfg.Session.MaxFailedAttempts = 3
 	cfg.Session.LockoutDuration = 5 * time.Minute
-	
+
 	// Upload
 	cfg.Upload.MaxFileSizeMB = 10
 	cfg.Upload.AllowedTypes = []string{"image/jpeg", "image/png", "image/webp"}
-	
+
 	// WebSocket
 	cfg.WebSocket.ReadDeadline = 60 * time.Second
 	cfg.WebSocket.PingInterval = 30 * time.Second
 	cfg.WebSocket.AllowedOrigins = []string{"https://localhost:8082", "https://127.0.0.1:8082", "http://localhost:8082", "http://127.0.0.1:8082"}
 	cfg.WebSocket.AllowPrivateIPs = true
-	
+
 	// Logging
 	cfg.Logging.Level = "info"
 	cfg.Logging.Format = "json"
-	
+
 	return cfg
 }
 
@@ -85,8 +85,8 @@ func LoadConfig(configPath string) (*Config, error) {
 	// 1. Erstelle Viper Instanz
 	v := viper.New()
 	v.SetConfigName("config") // Name der Config-Datei (ohne Endung)
-	v.SetConfigType("yaml")    // oder json
-	v.AutomaticEnv()           // Lese Umgebungsvariablen automatisch
+	v.SetConfigType("yaml")   // oder json
+	v.AutomaticEnv()          // Lese Umgebungsvariablen automatisch
 	v.SetEnvPrefix("DSCAN")   // Praefix fuer Umgebungsvariablen (z.B. DSCAN_SERVER_PORT)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 

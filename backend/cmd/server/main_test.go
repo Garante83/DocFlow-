@@ -109,7 +109,7 @@ func TestSetupLogger(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup logger with config
 			setupLogger(tt.cfg)
-			
+
 			// We can't easily verify the logger level without accessing internals,
 			// but we can verify it doesn't panic
 			assert.True(t, true, "setupLogger should complete without panic")
@@ -121,23 +121,23 @@ func TestSetupLogger(t *testing.T) {
 func TestWriteTempFile(t *testing.T) {
 	// Test data
 	testData := []byte("test content")
-	
+
 	// Write temp file
 	filename := writeTempFile("test.pem", testData)
-	
+
 	// Verify file was created
 	file, err := os.Open(filename)
 	require.NoError(t, err)
 	defer file.Close()
 	defer os.Remove(filename)
-	
+
 	// Read content back
 	content, err := io.ReadAll(file)
 	require.NoError(t, err)
-	
+
 	// Verify content matches
 	assert.Equal(t, testData, content)
-	
+
 	// Verify filename contains expected pattern
 	assert.Contains(t, filename, "test.pem")
 }

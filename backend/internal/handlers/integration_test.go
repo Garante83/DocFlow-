@@ -28,7 +28,7 @@ func setupIntegrationRouter(t testing.TB) *gin.Engine {
 	store := session.NewStore()
 	hub := ws.NewHub()
 	go hub.Run()
-	
+
 	// Ensure hub is stopped after test completes
 	t.Cleanup(func() {
 		hub.Stop()
@@ -141,7 +141,7 @@ func TestFullWorkflowWithDevConfig(t *testing.T) {
 	store := session.NewStore()
 	hub := ws.NewHub()
 	go hub.Run()
-	
+
 	// Ensure hub is stopped after test completes
 	t.Cleanup(func() {
 		hub.Stop()
@@ -174,7 +174,7 @@ func TestFullWorkflowWithProdConfig(t *testing.T) {
 	store := session.NewStore()
 	hub := ws.NewHub()
 	go hub.Run()
-	
+
 	// Ensure hub is stopped after test completes
 	t.Cleanup(func() {
 		hub.Stop()
@@ -213,7 +213,7 @@ func TestConcurrentSessions(t *testing.T) {
 		req, _ := http.NewRequest("POST", "/api/session", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
-		
+
 		var sessionResp map[string]string
 		json.Unmarshal(w.Body.Bytes(), &sessionResp)
 		sessionIDs = append(sessionIDs, sessionResp["session_id"])
@@ -224,7 +224,7 @@ func TestConcurrentSessions(t *testing.T) {
 		req, _ := http.NewRequest("DELETE", "/api/session/"+id, nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
-		
+
 		assert.Equal(t, http.StatusNoContent, w.Code)
 	}
 }

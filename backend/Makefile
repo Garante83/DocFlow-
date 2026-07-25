@@ -1,4 +1,4 @@
-.PHONY: test all build clean config-dev config-prod build-dev build-prod
+.PHONY: test all build clean lint fmt config-dev config-prod build-dev build-prod tidy coverage run
 
 # Run all tests
 test:
@@ -8,6 +8,17 @@ test:
 coverage:
 	go test ./... -coverprofile=coverage.out -covermode=atomic
 	go tool cover -html=coverage.out -o coverage.html
+
+# Lint: vet + format check
+lint:
+	go vet ./...
+	@test -z "$$(gofmt -l .)" || (echo "Files need formatting:" && gofmt -l . && exit 1)
+	@echo "Lint passed"
+
+# Format code
+fmt:
+	gofmt -w .
+	@echo "Code formatted"
 
 # Build the server
 build:
@@ -25,27 +36,23 @@ clean:
 tidy:
 	go mod tidy
 
-# Run all tests and build
-all: test build
+# Lint + Test + Build
+all: lint test build
 
 # Config targets
-# Copy dev config to config.yaml
 config-dev:
 	cp config/config.dev.yaml config/config.yaml
 	@echo "Switched to development config"
 
-# Copy prod config to config.yaml
 config-prod:
 	cp config/config.prod.yaml config/config.yaml
 	@echo "Switched to production config"
 
-# Build with dev config
 build-dev:
 	cp config/config.dev.yaml config/config.yaml
 	go build -o server-dev ./cmd/server
 	@echo "Built with development config"
 
-# Build with prod config
 build-prod:
 	cp config/config.prod.yaml config/config.yaml
 	go build -o server-prod ./cmd/server

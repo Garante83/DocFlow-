@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -27,47 +27,47 @@ func isPrivateIP(ip string) bool {
 	if strings.Contains(ip, ":") {
 		ip = strings.Split(ip, ":")[0]
 	}
-	
+
 	// Parse the IP
 	parsedIP := net.ParseIP(ip)
 	if parsedIP == nil {
 		return false
 	}
-	
+
 	// Check for private IP ranges
 	// 10.0.0.0/8
 	if parsedIP.IsPrivate() {
 		return true
 	}
-	
+
 	// 100.64.0.0/10 (Carrier-grade NAT)
 	if ip4 := parsedIP.To4(); ip4 != nil {
 		if ip4[0] == 100 && (ip4[1]&0xC0) == 64 {
 			return true
 		}
 	}
-	
+
 	// 192.168.0.0/16
 	if ip4 := parsedIP.To4(); ip4 != nil {
 		if ip4[0] == 192 && ip4[1] == 168 {
 			return true
 		}
 	}
-	
+
 	// 172.16.0.0/12
 	if ip4 := parsedIP.To4(); ip4 != nil {
 		if ip4[0] == 172 && (ip4[1]&0xF0) == 16 {
 			return true
 		}
 	}
-	
+
 	// 169.254.0.0/16 (Link-local)
 	if ip4 := parsedIP.To4(); ip4 != nil {
 		if ip4[0] == 169 && ip4[1] == 254 {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -79,25 +79,25 @@ func createOriginChecker(cfg *config.Config) func(r *http.Request) bool {
 			return true
 		}
 	}
-	
+
 	allowedOrigins := cfg.WebSocket.AllowedOrigins
 	allowPrivateIPs := cfg.WebSocket.AllowPrivateIPs
-	
+
 	return func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
-		
+
 		// If no Origin header, we can't verify - reject
 		if origin == "" {
 			return false
 		}
-		
+
 		// If the origin is in the allowed list, accept
 		for _, allowedOrigin := range allowedOrigins {
 			if origin == allowedOrigin {
 				return true
 			}
 		}
-		
+
 		// If private IPs are allowed, check if the origin's IP is private
 		if allowPrivateIPs {
 			// Parse the origin URL to extract host
@@ -105,13 +105,13 @@ func createOriginChecker(cfg *config.Config) func(r *http.Request) bool {
 			if err != nil {
 				return false
 			}
-			
+
 			// Check if the host is a private IP
 			if isPrivateIP(url.Host) {
 				return true
 			}
 		}
-		
+
 		return false
 	}
 }
@@ -124,7 +124,7 @@ func parseOrigin(origin string) (*struct {
 }, error) {
 	// Remove any trailing slash
 	origin = strings.TrimSuffix(origin, "/")
-	
+
 	// Check if it's a valid URL
 	if !strings.Contains(origin, "://") {
 		// Assume http if no scheme
@@ -135,12 +135,12 @@ func parseOrigin(origin string) (*struct {
 			origin = "http://" + origin
 		}
 	}
-	
+
 	url, err := url.Parse(origin)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &struct {
 		Scheme string
 		Host   string
@@ -155,30 +155,30 @@ func parseOrigin(origin string) (*struct {
 // WebSocketHandler handles WebSocket connections for sessions.
 func WebSocketHandler(c *gin.Context) {
 	deps := getDeps()
-	
+
 	// Get the config, use DefaultConfig if nil
 	cfg := deps.Config
 	if cfg == nil {
 		cfg = config.DefaultConfig()
 	}
-	
+
 	// Create upgrader with origin checker from config
 	upgrader := &websocket.Upgrader{
 		ReadBufferSize:  websocketReadBufferSize,
 		WriteBufferSize: websocketWriteBufferSize,
 		CheckOrigin:     createOriginChecker(cfg),
 	}
-	
+
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("Failed to upgrade to WebSocket: %v", err)
+		slog.Error("Failed to upgrade to WebSocket", "error", err)
 		return
 	}
 
 	sessionIDStr := c.Param("id")
 	sessionID, err := uuid.Parse(sessionIDStr)
 	if err != nil {
-		log.Println("Invalid session ID:", err)
+		slog.Warn("Invalid session ID", "error", err)
 		conn.Close()
 		return
 	}
@@ -186,7 +186,7 @@ func WebSocketHandler(c *gin.Context) {
 	// Check if the session exists
 	_, exists := deps.SessionStore.Get(sessionID)
 	if !exists {
-		log.Println("Session not found:", sessionID)
+		slog.Warn("Session not found", "session_id", sessionID)
 		conn.Close()
 		return
 	}
@@ -203,7 +203,7 @@ func WebSocketHandler(c *gin.Context) {
 	if wsConfig.PingInterval <= 0 {
 		wsConfig.PingInterval = 30 * time.Second
 	}
-	
+
 	// Set initial read deadline
 	conn.SetReadDeadline(time.Now().Add(wsConfig.ReadDeadline))
 
@@ -228,12 +228,12 @@ func WebSocketHandler(c *gin.Context) {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-				log.Println("WebSocket error:", err)
+				slog.Warn("WebSocket unexpected close", "error", err)
 			}
 			break
 		}
 
-		log.Printf("Received message from session %s: %s", sessionID, message)
+		slog.Debug("WebSocket message received", "session_id", sessionID, "message", string(message))
 		deps.WebSocketHub.Broadcast(sessionID, message)
 	}
 }

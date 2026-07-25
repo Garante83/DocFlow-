@@ -152,7 +152,7 @@ func TestLoadConfig_WithAllEnvVars(t *testing.T) {
 	oldHost := os.Getenv("DSCAN_SERVER_HOST")
 	oldMaxSize := os.Getenv("DSCAN_UPLOAD_MAX_FILE_SIZE_MB")
 	oldLevel := os.Getenv("DSCAN_LOGGING_LEVEL")
-	
+
 	// Cleanup
 	defer func() {
 		os.Unsetenv("DSCAN_SERVER_PORT")
@@ -200,7 +200,7 @@ func TestBindEnvVars(t *testing.T) {
 	oldPort := os.Getenv("DSCAN_SERVER_PORT")
 	oldHost := os.Getenv("DSCAN_SERVER_HOST")
 	oldTimeout := os.Getenv("DSCAN_SESSION_TIMEOUT")
-	
+
 	// Cleanup
 	defer func() {
 		os.Unsetenv("DSCAN_SERVER_PORT")
@@ -216,19 +216,19 @@ func TestBindEnvVars(t *testing.T) {
 			os.Setenv("DSCAN_SESSION_TIMEOUT", oldTimeout)
 		}
 	}()
-	
+
 	// Create a Viper instance and bind env vars
 	v := viper.New()
 	bindEnvVars(v)
-	
+
 	// Set env vars
 	os.Setenv("DSCAN_SERVER_PORT", "9999")
 	os.Setenv("DSCAN_SERVER_HOST", "0.0.0.0")
 	os.Setenv("DSCAN_SESSION_TIMEOUT", "2h")
-	
+
 	// Reload bindEnvVars to pick up the new values
 	bindEnvVars(v)
-	
+
 	// Check that values were bound
 	assert.Equal(t, "9999", v.GetString("server.port"))
 	assert.Equal(t, "0.0.0.0", v.GetString("server.host"))
@@ -240,12 +240,12 @@ func TestParseFlags(t *testing.T) {
 	v := viper.New()
 	v.Set("server.port", "8082")
 	v.Set("server.host", "0.0.0.0")
-	
+
 	// Call parseFlags - this should not panic
 	// Note: This function is designed to work with flag.Parse()
 	// which we can't easily test in unit tests
 	parseFlags(v)
-	
+
 	// Verify it doesn't crash
 	assert.True(t, true, "parseFlags should complete without panic")
 }
@@ -253,15 +253,15 @@ func TestParseFlags(t *testing.T) {
 func TestConfigMerging(t *testing.T) {
 	// Test that config values are properly merged from multiple sources
 	// This tests the priority: Defaults < Config File < ENV < Flags
-	
+
 	// Set up a config with some values
 	cfg := DefaultConfig()
-	
+
 	// Verify default values
 	assert.Equal(t, "8082", cfg.Server.Port)
 	assert.Equal(t, "0.0.0.0", cfg.Server.Host)
 	assert.Equal(t, 10, cfg.Upload.MaxFileSizeMB)
-	
+
 	// This test verifies the config structure is correct
 	// Full merging tests would require more complex setup
 }
