@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"image"
+	"image/color"
 	"image/png"
 	"mime/multipart"
 	"net/http"
@@ -418,4 +419,168 @@ func TestWebSocketConnectionAndBroadcast(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	assert.True(t, true, "WebSocket broadcast should not panic")
+}
+
+// === Multi-Page Integration Tests ===
+
+func TestMultiPageWorkflow(t *testing.T) {
+	router := setupIntegrationRouter(t)
+	router.POST("/api/session", CreateSessionHandler)
+	router.POST("/api/session/:id/verify-pin", VerifyPINHandler)
+	router.POST("/api/session/:id/upload", UploadHandler)
+	router.POST("/api/session/:id/finalize", FinalizeHandler)
+	router.GET("/api/session/:id/pdf", PDFHandler)
+	router.DELETE("/api/session/:id", DeleteSessionHandler)
+
+	sessionID := createSessionAndVerify(t, router)
+
+	// Upload 3 pages
+	for i := 0; i < 3; i++ {
+		assert.Equal(t, http.StatusOK, uploadPNG(t, router, sessionID))
+	}
+
+	// Finalize
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/session/"+sessionID+"/finalize", nil)
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var finalizeResp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &finalizeResp)
+	assert.Equal(t, float64(3), finalizeResp["page_count"])
+
+	// Download PDF
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/session/"+sessionID+"/pdf", nil)
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/pdf", w.Header().Get("Content-Type"))
+	assert.True(t, len(w.Body.Bytes()) > 100, "Multi-page PDF should be > 100 bytes")
+
+	// Cleanup
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("DELETE", "/api/session/"+sessionID, nil)
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+func TestMultiPageWorkflowWithQRCode(t *testing.T) {
+	router := setupIntegrationRouter(t)
+	router.POST("/api/session", CreateSessionHandler)
+	router.GET("/api/session/:id/qrcode", QRCodeHandler)
+	router.POST("/api/session/:id/verify-pin", VerifyPINHandler)
+	router.POST("/api/session/:id/upload", UploadHandler)
+	router.POST("/api/session/:id/finalize", FinalizeHandler)
+
+	// Create session
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/session", nil)
+	router.ServeHTTP(w, req)
+
+	var resp map[string]string
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	sessionID := resp["session_id"]
+
+	// Get QR code
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/session/"+sessionID+"/qrcode", nil)
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "image/png", w.Header().Get("Content-Type"))
+
+	// Verify PIN
+	pinBody, _ := json.Marshal(map[string]string{"pin": resp["pin"]})
+	req, _ = http.NewRequest("POST", "/api/session/"+sessionID+"/verify-pin", bytes.NewReader(pinBody))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Upload 2 pages
+	assert.Equal(t, http.StatusOK, uploadPNG(t, router, sessionID))
+	assert.Equal(t, http.StatusOK, uploadPNG(t, router, sessionID))
+
+	// Finalize
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("POST", "/api/session/"+sessionID+"/finalize", nil)
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestMultiPagePDFSizeCompression(t *testing.T) {
+	store := session.NewStore()
+	hub := ws.NewHub()
+	go hub.Run()
+	t.Cleanup(func() { hub.Stop() })
+
+	cfg := &config.Config{}
+	cfg.Upload.MaxFileSizeMB = 10
+	cfg.Upload.AllowedTypes = []string{"image/jpeg", "image/png", "image/webp"}
+	cfg.Session.Timeout = 1 * time.Hour
+	cfg.Session.CleanupInterval = 5 * time.Minute
+	cfg.Session.MaxFailedAttempts = 3
+	cfg.Session.LockoutDuration = 5 * time.Minute
+	cfg.PDF.MaxPages = 20
+	cfg.PDF.JPEGQuality = 50
+	cfg.PDF.CompressOutput = true
+
+	Init(store, hub, cfg)
+
+	router := gin.Default()
+	router.POST("/api/session", CreateSessionHandler)
+	router.POST("/api/session/:id/verify-pin", VerifyPINHandler)
+	router.POST("/api/session/:id/upload", UploadHandler)
+	router.POST("/api/session/:id/finalize", FinalizeHandler)
+	router.GET("/api/session/:id/pdf", PDFHandler)
+
+	sessionID := createSessionAndVerify(t, router)
+
+	// Create larger test images (1000x1000 RGBA with random noise)
+	for i := 0; i < 3; i++ {
+		img := image.NewRGBA(image.Rect(0, 0, 1000, 1000))
+		for y := 0; y < 1000; y++ {
+			for x := 0; x < 1000; x++ {
+				img.Set(x, y, color.RGBA{
+					R: uint8((x + y + i*37) % 256),
+					G: uint8((x*2 + y*3) % 256),
+					B: uint8((x*3 + y*2) % 256),
+					A: 255,
+				})
+			}
+		}
+		var imgBuf bytes.Buffer
+		png.Encode(&imgBuf, img)
+
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		part, _ := writer.CreateFormFile("image", "test.png")
+		part.Write(imgBuf.Bytes())
+		writer.Close()
+
+		req, _ := http.NewRequest("POST", "/api/session/"+sessionID+"/upload", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	}
+
+	// Finalize with low quality
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/session/"+sessionID+"/finalize", nil)
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Get PDF size
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/session/"+sessionID+"/pdf", nil)
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	pdfSize := len(w.Body.Bytes())
+	assert.True(t, pdfSize > 100, "PDF should be > 100 bytes, got %d", pdfSize)
+
+	// Verify PDF is smaller than uncompressed original (3 PNGs of 1000x1000 RGBA are ~12MB)
+	// With JPEG 50% + zlib, should be ~10x smaller
+	assert.True(t, pdfSize < 2*1024*1024,
+		"Compressed PDF (%d bytes) should be < 2MB for 3x 1000x1000 RGBA images", pdfSize)
 }

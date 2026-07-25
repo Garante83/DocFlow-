@@ -89,18 +89,35 @@ describe('apiService', () => {
   describe('uploadImage', () => {
     it('should upload image and return result', async () => {
       mockPost.mockResolvedValue({
-        data: { message: 'Image uploaded successfully' },
+        data: { message: 'Image uploaded successfully', page_count: 1 },
       })
 
       const file = new File(['test'], 'test.jpg', { type: 'image/jpeg' })
       const result = await apiService.uploadImage('session-1', file)
       expect(result.image_id).toBe('session-1')
       expect(result.message).toBe('Image uploaded successfully')
+      expect(result.page_count).toBe(1)
       expect(mockPost).toHaveBeenCalledWith(
         '/api/session/session-1/upload',
         expect.any(FormData),
         { headers: { 'Content-Type': 'multipart/form-data' } }
       )
+    })
+  })
+
+  describe('finalizeUpload', () => {
+    it('should call finalize endpoint', async () => {
+      mockPost.mockResolvedValue({ data: { message: 'PDF generated', page_count: 3 } })
+
+      await apiService.finalizeUpload('session-1')
+
+      expect(mockPost).toHaveBeenCalledWith('/api/session/session-1/finalize')
+    })
+
+    it('should handle finalize error', async () => {
+      mockPost.mockRejectedValue(new Error('No images'))
+
+      await expect(apiService.finalizeUpload('session-1')).rejects.toThrow('No images')
     })
   })
 

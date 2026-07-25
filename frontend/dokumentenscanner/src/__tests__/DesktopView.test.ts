@@ -201,4 +201,55 @@ const mountOpts = { global: { plugins: [createPinia()], stubs: { QRCodeDisplay: 
 
     expect(websocketClient.send).toHaveBeenCalledWith('download_request', { session_id: 'test-id' })
   })
+
+  it('should show page counter after image_added event', async () => {
+    mockCreateSession.mockResolvedValue({ session_id: 'test-id', pin: '123456' })
+    const wrapper = mount(DesktopView, mountOpts)
+
+    await vi.waitFor(() => {
+      expect(websocketClient.on).toHaveBeenCalled()
+    })
+
+    // Simulate page received
+    const imageHandler = registeredHandlers.get('image_added')![0]!
+    imageHandler({ page_count: 3 })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('3')
+    expect(wrapper.text()).toContain('Pages Received')
+  })
+
+  it('should register pdf_ready handler', async () => {
+    mockCreateSession.mockResolvedValue({ session_id: 'test-id', pin: '123456' })
+    mount(DesktopView, mountOpts)
+
+    await vi.waitFor(() => {
+      expect(websocketClient.on).toHaveBeenCalledWith('pdf_ready', expect.any(Function))
+    })
+  })
+
+  it('should show page count in confirm_download view', async () => {
+    mockCreateSession.mockResolvedValue({ session_id: 'test-id', pin: '123456' })
+    mockDownloadPDF.mockResolvedValue(new Blob(['pdf-data']))
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:mock'), revokeObjectURL: vi.fn() })
+
+    const wrapper = mount(DesktopView, mountOpts)
+
+    await vi.waitFor(() => {
+      expect(websocketClient.on).toHaveBeenCalled()
+    })
+
+    // Simulate 5 pages received
+    const imageHandler = registeredHandlers.get('image_added')![0]!
+    imageHandler({ page_count: 5 })
+    await wrapper.vm.$nextTick()
+
+    // Simulate PDF ready
+    const pdfHandler = registeredHandlers.get('pdf_ready')![0]!
+    pdfHandler({})
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('5')
+    expect(wrapper.text()).toContain('pages')
+  })
 })
