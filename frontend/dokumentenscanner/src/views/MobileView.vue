@@ -114,8 +114,9 @@ function confirmDownload() {
       <!-- Finalize: generating PDF -->
       <div v-else-if="currentView === 'finalize'" class="card">
         <div class="spinner"></div>
-        <h2>Generating PDF</h2>
-        <p class="info">Processing {{ pageCount }} {{ pageCount === 1 ? 'page' : 'pages' }}...</p>
+        <h2>PDF wird erstellt</h2>
+        <p class="info">Bitte bestätige den Download auf dem Desktop.</p>
+        <p class="hint">Schließe dieses Fenster nicht, bis der Download abgeschlossen ist.</p>
       </div>
 
       <!-- Download confirmation -->

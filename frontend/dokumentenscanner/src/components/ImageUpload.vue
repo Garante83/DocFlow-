@@ -43,6 +43,9 @@ const dragOffset = ref({ x: 0, y: 0 })
 
 const canUpload = computed(() => selectedFile.value !== null && !isUploading.value && !errorMessage.value)
 
+// Edit index: null = new image, number = editing existing image in the list
+const editIndex = ref<number | null>(null)
+
 // Pre-compute blob URLs for page thumbnails (avoids Memory Leak from URL.createObjectURL in template)
 const pageThumbs = computed(() => {
   return sessionStore.images.map((file) => URL.createObjectURL(file))
@@ -60,6 +63,17 @@ const uploadPercent = computed(() => {
 
 async function loadImageBitmap(file: File): Promise<ImageBitmap> {
   return createImageBitmap(file, { orientation: 'from-image' })
+}
+
+// Edit from list: load an existing image into edit mode
+function editFromList(index: number) {
+  if (index < 0 || index >= sessionStore.images.length) return
+  const file = sessionStore.images[index]
+  editIndex.value = index
+  selectedFile.value = file
+  previewUrl.value = URL.createObjectURL(file)
+  rotation.value = 0
+  mode.value = 'edit'
 }
 
 function handleFileChange(event: Event) {
@@ -410,6 +424,7 @@ function resetEdit() {
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
   selectedFile.value = null
   previewUrl.value = null
+  editIndex.value = null
   rotation.value = 0
   showCrop.value = false
   mode.value = 'choose'
@@ -455,15 +470,23 @@ async function uploadFile() {
 
   try {
     // Always normalize through canvas to strip EXIF orientation
-    // and bake correct pixel orientation into the JPEG
     let fileToUpload = selectedFile.value
     fileToUpload = await normalizeImage(fileToUpload, rotation.value)
 
     const response = await apiService.uploadImage(sessionStore.sessionID, fileToUpload)
-    sessionStore.addImage(fileToUpload)
+
+    if (editIndex.value !== null) {
+      // Replace existing image in the list
+      sessionStore.images[editIndex.value] = fileToUpload
+      successMessage.value = 'Page updated successfully!'
+    } else {
+      // Add new image
+      sessionStore.addImage(fileToUpload)
+      successMessage.value = 'Page added successfully!'
+    }
+
     sessionStore.setStatus('uploading')
     emit('pageAdded', { page_count: response.page_count || sessionStore.imageCount })
-    successMessage.value = 'Page added successfully!'
 
     // Reset to choose mode for next page
     if (previewUrl.value) {
@@ -471,6 +494,7 @@ async function uploadFile() {
       previewUrl.value = null
     }
     selectedFile.value = null
+    editIndex.value = null
     rotation.value = 0
     showCrop.value = false
     mode.value = 'choose'
@@ -550,10 +574,10 @@ onUnmounted(() => {
       <div v-if="sessionStore.imageCount > 0" class="page-list">
         <h3 class="page-list-title">{{ sessionStore.imageCount }} {{ sessionStore.imageCount === 1 ? 'Page' : 'Pages' }}</h3>
         <div class="page-items">
-          <div v-for="(file, index) in sessionStore.images" :key="index" class="page-item">
+          <div v-for="(file, index) in sessionStore.images" :key="index" class="page-item" @click="editFromList(index)">
             <img :src="pageThumbs[index]" class="page-thumb" />
             <span class="page-number">{{ index + 1 }}</span>
-            <button @click="sessionStore.removeImage(index)" class="page-remove" title="Remove page">
+            <button @click.stop="sessionStore.removeImage(index)" class="page-remove" title="Remove page">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -634,7 +658,7 @@ onUnmounted(() => {
         <button @click="resetEdit" class="btn btn-secondary" :disabled="isUploading">Back</button>
         <button @click="uploadFile" class="btn btn-primary" :disabled="!canUpload">
           <span v-if="isUploading">Uploading...</span>
-          <span v-else>Add Page</span>
+          <span v-else>{{ editIndex !== null ? 'Update Page' : 'Add Page' }}</span>
         </button>
       </div>
     </template>
@@ -704,8 +728,10 @@ onUnmounted(() => {
 .page-item {
   position: relative; width: 80px; height: 100px;
   border: 2px solid var(--color-border); border-radius: var(--radius-sm);
-  overflow: hidden; background: white;
+  overflow: hidden; background: white; cursor: pointer;
+  transition: var(--transition);
 }
+.page-item:hover { border-color: var(--color-primary); box-shadow: var(--shadow-sm); }
 .page-thumb { width: 100%; height: 70px; object-fit: cover; }
 .page-number {
   display: block; text-align: center; font-size: 0.75rem; font-weight: 600;

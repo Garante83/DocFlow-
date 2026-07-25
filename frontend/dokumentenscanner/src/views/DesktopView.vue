@@ -170,22 +170,22 @@ function startNewSession() {
       </div>
 
       <!-- Completed -->
-      <div v-else-if="currentView === 'completed'" class="card">
-        <div class="success-icon">
+      <div v-else-if="currentView === 'completed'" class="card card-completed">
+        <div class="success-icon completed-icon">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
         </div>
-        <h2>Download Complete</h2>
-        <p class="info" v-if="pageCount > 0">{{ pageCount }} {{ pageCount === 1 ? 'page' : 'pages' }} — PDF has been saved.</p>
-        <p class="info" v-else>The document has been downloaded successfully.</p>
-        <p class="hint">All session data has been deleted from the server.</p>
-        <button @click="startNewSession" class="btn btn-primary btn-lg">
+        <h2>Vorgang abgeschlossen</h2>
+        <p class="info" v-if="pageCount > 0">{{ pageCount }} {{ pageCount === 1 ? 'Seite' : 'Seiten' }} — PDF wurde heruntergeladen.</p>
+        <p class="info" v-else>Das PDF wurde erfolgreich heruntergeladen.</p>
+        <p class="hint">Alle Session-Daten wurden vom Server gelöscht.</p>
+        <button @click="startNewSession" class="btn btn-success btn-lg">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px">
             <polyline points="1 4 1 10 7 10"></polyline>
             <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
           </svg>
-          New Session
+          Neue Sitzung starten
         </button>
       </div>
     </div>
@@ -291,6 +291,11 @@ function startNewSession() {
   align-items: center;
   justify-content: center;
   box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+}
+
+.completed-icon {
+  background: linear-gradient(135deg, #059669, #047857);
+  box-shadow: 0 12px 32px rgba(5, 150, 105, 0.4);
 }
 
 .error-icon {
@@ -431,6 +436,18 @@ function startNewSession() {
   box-shadow: none;
   cursor: not-allowed;
   transform: none;
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+
+.btn-success:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
 }
 
 .btn-lg {
