@@ -52,7 +52,7 @@ graph TD
     end
 
     subgraph Backend
-        B1[REST API<br/>Gin]
+        B1["REST API (Gin)"]
         B2[WebSocket Hub]
         B3[Session Store]
         B4[PDF Generator]
@@ -85,24 +85,31 @@ NeuDocumentenScaner/
 │   │       ├── index-*.js
 │   │       └── index-*.css
 │   ├── internal/
+│   │   ├── config/              # Konfigurationsmanagement (Viper)
+│   │   │   ├── config.go        # Config-Struktur + LoadConfig + Defaults
+│   │   │   └── config_test.go   # Config-Tests (74% Coverage)
 │   │   ├── handlers/            # HTTP-Handler
+│   │   │   ├── deps.go          # Dependency Injection
 │   │   │   ├── session.go       # CreateSession, VerifyPIN, DeleteSession
 │   │   │   ├── qrcode.go        # QR-Code-Generierung (LAN-IP auto-detect)
 │   │   │   ├── upload.go        # Bild-Upload + WebSocket-Broadcast
 │   │   │   ├── pdf.go           # PDF-Generierung + WebSocket-Broadcast
-│   │   │   └── websocket.go     # WebSocket-Handler + Message-Forwarding
+│   │   │   └── websocket.go     # WebSocket-Handler + Origin-Check + Message-Forwarding
 │   │   ├── session/             # Session-Management
 │   │   │   ├── session.go       # Session-Struktur + Store (In-Memory)
 │   │   │   ├── pin.go           # PIN-Generierung + Verifizierung
-│   │   │   └── cleanup.go       # Session-Timeout (1h) + Auto-Cleanup
+│   │   │   ├── cleanup.go       # Session-Timeout (1h) + Auto-Cleanup
+│   │   │   ├── session_test.go  # Session-Tests
+│   │   │   └── pin_test.go      # PIN-Tests
 │   │   └── websocket/           # WebSocket-Hub
-│   │       └── hub.go           # Client-Management + Broadcast
+│   │       ├── hub.go           # Client-Management + Broadcast
+│   │       └── hub_test.go      # Hub-Tests (94% Coverage)
 │   ├── pkg/utils/               # Utility-Funktionen
 │   │   ├── pdf.go               # PDF-Generierung (gofpdf)
 │   │   └── pdf_test.go          # PDF-Tests
 │   ├── go.mod                   # Go-Modul
 │   ├── go.sum                   # Abhängigkeiten
-│   └── Makefile                 # Build-Skripts (siehe [Entwicklung](#7-entwicklung))
+│   └── Makefile                 # Build-Skripts
 ├── frontend/
 │   └── dokumentenscanner/
 │       ├── index.html           # Laedt Inter-Font (Google Fonts)
@@ -113,7 +120,8 @@ NeuDocumentenScaner/
 │       │   ├── components/
 │       │   │   ├── QRCodeDisplay.vue  # QR-Code + PIN-Anzeige
 │       │   │   ├── PINInput.vue       # 6-stellige PIN-Eingabe mit Lock-Feedback
-│       │   │   └── ImageUpload.vue    # Kamera + Crop + Rotate (Client-seitig)
+│       │   │   ├── ImageUpload.vue    # Kamera + Crop + Rotate (Client-seitig)
+│       │   │   └── PDFPreview.vue     # PDF-Vorschau
 │       │   ├── stores/
 │       │   │   └── sessionStore.ts    # Pinia State (Session-ID, Status, Bild)
 │       │   ├── utils/
@@ -123,9 +131,18 @@ NeuDocumentenScaner/
 │       │   │   └── index.ts           # Hash-Routing (Desktop/Mobile)
 │       │   ├── assets/
 │       │   │   └── main.css           # CSS Custom Properties (Glassmorphism)
+│       │   ├── __tests__/             # Frontend-Tests (Vitest)
+│       │   │   ├── websocket.test.ts  # WebSocket-Client Tests
+│       │   │   ├── sessionStore.test.ts # Pinia Store Tests
+│       │   │   ├── api.test.ts        # API-Service Tests
+│       │   │   ├── DesktopView.test.ts # Desktop-View Tests
+│       │   │   ├── MobileView.test.ts  # Mobile-View Tests
+│       │   │   ├── PINInput.test.ts    # PIN-Eingabe Tests
+│       │   │   └── QRCodeDisplay.test.ts # QR-Code Tests
 │       │   ├── App.vue
 │       │   └── main.ts
-│       └── vite.config.ts
+│       ├── vite.config.ts        # Vite + Vitest Konfiguration
+│       └── package.json
 └── map.md                        # Diese Datei
 ```
 
@@ -231,10 +248,10 @@ graph TD
     B --> C[Config-Datei]
     C --> D[Default-Werte]
     
-    style A fill:#f9f,stroke:#333
-    style B fill:#bbf,stroke:#333
-    style C fill:#9f9,stroke:#333
-    style D fill:#fff,stroke:#333
+    style A fill:#e040fb,stroke:#4a148c,color:#fff,stroke-width:2px
+    style B fill:#42a5f5,stroke:#0d47a1,color:#fff,stroke-width:2px
+    style C fill:#66bb6a,stroke:#1b5e20,color:#fff,stroke-width:2px
+    style D fill:#78909c,stroke:#263238,color:#fff,stroke-width:2px
 ```
 
 ### Config-Struktur
@@ -344,13 +361,13 @@ Siehe [Deployment](#8-deployment) für Docker-spezifische Einstellungen.
 **WebSocket-Nachrichten**:
 ```json
 // Server -> Clients (Broadcast)
-{"type": "image_uploaded", "session_id": "uuid"}
-{"type": "download_request", "session_id": "uuid"}
-{"type": "download_confirmed", "session_id": "uuid"}
+{"event": "image_uploaded", "session_id": "uuid"}
+{"event": "download_request", "session_id": "uuid"}
+{"event": "download_confirmed", "session_id": "uuid"}
 
 // Clients -> Server
-{"type": "download_request", "session_id": "uuid"}
-{"type": "download_confirmed", "session_id": "uuid"}
+{"event": "download_request", "data": {"session_id": "uuid"}}
+{"event": "download_confirmed", "data": {"session_id": "uuid"}}
 ```
 
 ---
@@ -407,11 +424,11 @@ sequenceDiagram
     D->>D: User clicks Download
     D->>M: WebSocket: download_request
     M->>M: Show "Download Requested" + Confirm Button
-    M->>B: GET /api/session/{id}/pdf
-    B->>B: Generate PDF (gofpdf)
-    B-->>M: PDF-File
     M->>M: User clicks Confirm
     M->>D: WebSocket: download_confirmed
+    D->>B: GET /api/session/{id}/pdf
+    B->>B: Generate PDF (gofpdf)
+    B-->>D: PDF-Binary
     D->>D: Auto-download PDF via Blob
     D->>B: DELETE /api/session/{id} (optional)
 ```
@@ -423,9 +440,9 @@ sequenceDiagram
     participant B as Backend (Hub)
     participant C2 as Client 2 (Mobile)
 
-    C1->>B: WebSocket: {"type": "download_request", ...}
+    C1->>B: WebSocket: {"event": "download_request", ...}
     B->>B: Broadcast(sessionID, message)
-    B->>C2: WebSocket: {"type": "download_request", ...}
+    B->>C2: WebSocket: {"event": "download_request", ...}
     Note over B: Alle Clients in derselben Session erhalten die Nachricht
 ```
 
@@ -546,44 +563,91 @@ server {
 ### Teststruktur
 ```mermaid
 graph TD
-    A[Unit Tests] --> B[internal/session/pin_test.go]
-    A --> C[internal/session/session_test.go]
-    A --> D[pkg/utils/pdf_test.go]
-    E[Integration Tests] --> F[internal/handlers/integration_test.go]
+    subgraph Backend
+        BT[Backend Tests] --> BS[session/pin_test.go]
+        BT --> BS2[session/session_test.go]
+        BT --> BU[pkg/utils/pdf_test.go]
+        BT --> BH[websocket/hub_test.go]
+        BT --> BC[config/config_test.go]
+        BT --> BI[handlers/integration_test.go]
+    end
+    subgraph Frontend
+        FT[Frontend Tests] --> FW[websocket.test.ts]
+        FT --> FS[sessionStore.test.ts]
+        FT --> FA[api.test.ts]
+        FT --> FD[DesktopView.test.ts]
+        FT --> FM[MobileView.test.ts]
+        FT --> FP[PINInput.test.ts]
+        FT --> FQ[QRCodeDisplay.test.ts]
+    end
 ```
 
 ### Test-Coverage
-| Metrik | Wert |
-|--------|------|
-| Unit-Tests | 11 |
-| Integration-Tests | 1 |
-| **Gesamt-Coverage** | ~85% (geplant) |
 
-**Coverage-Report generieren**:
+**Backend** (`go test -cover`):
+
+| Paket | Coverage |
+|-------|----------|
+| `pkg/utils` | 82.4% |
+| `internal/config` | 74.5% |
+| `internal/session` | 70.0% |
+| `internal/handlers` | 65.2% |
+| `internal/websocket` | 93.9% |
+| `cmd/server` | 14.6% |
+
+**Frontend** (`npm run test:unit`):
+
+| Datei | Tests |
+|-------|-------|
+| `websocket.test.ts` | 15 |
+| `sessionStore.test.ts` | 16 |
+| `api.test.ts` | 9 |
+| `DesktopView.test.ts` | 9 |
+| `MobileView.test.ts` | 8 |
+| `PINInput.test.ts` | 12 |
+| `QRCodeDisplay.test.ts` | 7 |
+| **Gesamt Frontend** | **76** |
+| **Gesamt Backend** | **~60** |
+
+### Test ausfuehren
+
 ```bash
-make coverage
-# Oeffnet coverage.html im Browser
+# Backend
+cd backend
+go test ./... -v
+go test -cover ./...       # Mit Coverage
+
+# Frontend
+cd frontend/dokumentenscanner
+npx vitest run             # Alle Tests
+npx vitest run --reporter=verbose  # Detailliert
 ```
 
 ### Test-Fokus
-- **Unit-Tests**: Session-Management (PIN-Generierung, Verifizierung, Timeout)
-- **Integration-Tests**: Kompletter Workflow (Session -> Upload -> PDF -> Download)
-- **Manuelle Tests**: WebSocket-Kommunikation, Mobile/Desktop-Interaktion
+- **Backend Unit-Tests**: Session-Management, PIN-Generierung, Config-Validierung, WebSocket-Hub
+- **Backend Integration-Tests**: Kompletter Workflow (Session -> Upload -> PDF -> Download)
+- **Frontend Unit-Tests**: WebSocket-Client, Pinia Store, API-Service
+- **Frontend Component-Tests**: DesktopView, MobileView, PINInput, QRCodeDisplay
+- **Manuelle Tests**: WebSocket-Kommunikation, Mobile/Desktop-Interaktion im LAN
 
 ---
 
-## 10. Bekannte Bugs ## 9. Bekannte Bugs & Roadmap Roadmap
+## 10. Bekannte Bugs & Roadmap
 
 
 ### Status der Bugfixes
 
-**Aktualisierung 2026-07-25**: Alle zuvor dokumentierten Bugs wurden behoben ✅
+**Aktualisierung 2026-07-25**: Alle zuvor dokumentierten Bugs wurden behoben + neue fixes ✅
 
 | Bug | Status | Lösung |
 |-----|--------|---------|
 | Cleanup-Goroutine Leak | ✅ | Session-Store Cleanup in main.go |
 | Mutex-Deadlock | ✅ | Redesign der Handler-Dependencies |
 | WebSocket Timeouts | ✅ | Config-basierte Timeouts + Ping/Pong |
+| WebSocket Origin-Check fehlgeschlagen | ✅ | parseFlags: `ws-allow-private-ips` DefValue-Check ergaenzt (config.go:158) |
+| Doppelte WebSocket-Handler-Ausfuehrung | ✅ | Redundanter emitEvent-Aufruf in handleMessage entfernt (websocket.ts) |
+| DesktopView Handler-Leak | ✅ | Named Functions + cleanup in onUnmounted (DesktopView.vue) |
+| Config-Test fehlgeschlagen | ✅ | Expected AllowedOrigins mit Protokoll-Prefixen aktualisiert |
 
 ### Abgeschlossene Phase 3 Aufgaben
 
@@ -603,8 +667,9 @@ make coverage
 | Aufgabe | Beschreibung | Priorität |
 |---------|--------------|-----------|
 | 4.1 Graceful Shutdown | Sauberes Beenden mit Signal-Handling | Mittel |
-| 4.2 Strukturiertes Logging | Vollständige slog-Integration | Mittel |
+| 4.2 Frontend Tests erweitern | ImageUpload-Component-Tests, E2E-Tests | Hoch |
 | 4.3 Makefile finalisieren | Komplette Build-Infrastruktur | Niedrig |
+| 4.4 Frontend Coverage | Vitest Coverage-Tooling aktivieren | Niedrig |
 
 ---
 
