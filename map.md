@@ -303,6 +303,56 @@ stateDiagram-v2
 
 ---
 
+## 7. Performance
+
+Gemessen auf lokalem Server (Single-Core, Self-Signed TLS):
+
+### Response-Zeiten (API)
+
+| Endpoint | Zeit | Details |
+|----------|------|---------|
+| `POST /api/session` | **3.5ms** | Session + PIN erzeugen |
+| `POST /api/session/:id/verify-pin` | **3.4ms** | PIN-Validierung |
+| `GET /api/session/:id/qrcode` | **5.8ms** | QR-Code PNG generieren |
+| `POST /api/session/:id/upload` | **2.9ms** | Kleines Bild (369B) |
+| `POST /api/session/:id/finalize` | **4.8ms** | PDF aus 3 Bildern |
+| `GET /api/session/:id/pdf` | **3.1ms** | PDF-Download (3 Seiten, 2.6KB) |
+| `DELETE /api/session/:id` | **3.3ms** | Session loeschen |
+
+### TLS
+
+| Metrik | Wert |
+|--------|------|
+| Connect | 0.09ms |
+| TLS-Handshake | 2.8ms |
+| First Byte | 3.1ms |
+
+### Throughput
+
+| Test | Ergebnis |
+|------|----------|
+| 10x Session Create+Delete | 395ms (Ø 40ms/Vorgang) |
+| 5x parallele Sessions | 18ms |
+| 3-Seiten-PDF generieren | 4.8ms |
+| 3-Seiten-PDF downloaden | 3.1ms |
+
+### Binary
+
+| Metrik | Wert |
+|--------|------|
+| Go-Binary | 33MB |
+| Frontend-Bundle (JS) | ~95KB (gzip: ~37KB) |
+| Frontend-Bundle (CSS) | ~28KB (gzip: ~5KB) |
+
+### Einschraenkungen
+
+- **Max. Upload**: 10MB pro Bild (konfigurierbar via `upload.max_file_size_mb`)
+- **Max. Seiten**: 20 pro Session (konfigurierbar via `pdf.max_pages`)
+- **JPEG-Qualitaet**: 85% (konfigurierbar via `pdf.jpeg_quality`)
+- **Session-Timeout**: 1h (konfigurierbar via `session.timeout`)
+
+---
+
 ## 6. Konfiguration
 
 ### Config-Priorität
