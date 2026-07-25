@@ -264,26 +264,26 @@ graph TD
     root --> websocket[WebSocket]
     root --> logging[Logging]
     
-    server --> port[Port: string]
-    server --> host[Host: string]
-    server --> tls_cert_path[TLSCertPath: string]
-    server --> tls_key_path[TLSKeyPath: string]
+    server --> port["Port: string"]
+    server --> host["Host: string"]
+    server --> tls_cert_path["TLSCertPath: string"]
+    server --> tls_key_path["TLSKeyPath: string"]
     
-    session --> timeout[Timeout: duration]
-    session --> cleanup_interval[CleanupInterval: duration]
-    session --> max_failed_attempts[MaxFailedAttempts: int]
-    session --> lockout_duration[LockoutDuration: duration]
+    session --> timeout["Timeout: duration"]
+    session --> cleanup_interval["CleanupInterval: duration"]
+    session --> max_failed_attempts["MaxFailedAttempts: int"]
+    session --> lockout_duration["LockoutDuration: duration"]
     
-    upload --> max_file_size_mb[MaxFileSizeMB: int]
-    upload --> allowed_types[AllowedTypes: []string]
+    upload --> max_file_size_mb["MaxFileSizeMB: int"]
+    upload --> allowed_types["AllowedTypes: string[]"]
     
-    websocket --> read_deadline[ReadDeadline: duration]
-    websocket --> ping_interval[PingInterval: duration]
-    websocket --> allowed_origins[AllowedOrigins: []string]
-    websocket --> allow_private_ips[AllowPrivateIPs: bool]
+    websocket --> read_deadline["ReadDeadline: duration"]
+    websocket --> ping_interval["PingInterval: duration"]
+    websocket --> allowed_origins["AllowedOrigins: string[]"]
+    websocket --> allow_private_ips["AllowPrivateIPs: bool"]
     
-    logging --> level[Level: string]
-    logging --> format[Format: string]
+    logging --> level["Level: string"]
+    logging --> format["Format: string"]
 ```
 
 ### Config-Ladevorgang
