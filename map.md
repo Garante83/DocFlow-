@@ -593,7 +593,7 @@ graph TD
 | `internal/session` | 70.0% |
 | `internal/handlers` | 68.0% |
 | `internal/websocket` | 93.9% |
-| `cmd/server` | 14.6% |
+| `cmd/server` | 50.9% |
 
 **Frontend** (`npm run test:unit`):
 
