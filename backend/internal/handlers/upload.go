@@ -38,7 +38,7 @@ func UploadHandler(c *gin.Context) {
 	}
 
 	// Check if the session is allowed to upload
-	if sess.Status != session.StatusUploadAllowed {
+	if sess.Status != session.StatusUploadAllowed && sess.Status != session.StatusUploading {
 		c.JSON(http.StatusForbidden, gin.H{"error": "session not allowed to upload"})
 		return
 	}
@@ -124,14 +124,25 @@ func UploadHandler(c *gin.Context) {
 		return
 	}
 
-	// Store the image in the session
-	sess.Image = buf.Bytes()
-	sess.Status = session.StatusUploaded
+	// Check max pages limit
+	maxPages := deps.Config.PDF.MaxPages
+	if maxPages <= 0 {
+		maxPages = 20
+	}
+	if len(sess.Images) >= maxPages {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("maximum %d pages allowed", maxPages)})
+		return
+	}
+
+	// Append the image to the session
+	sess.Images = append(sess.Images, buf.Bytes())
+	sess.Status = session.StatusUploading
 	deps.SessionStore.Update(sess)
 
-	// Broadcast image_uploaded event to desktop clients
-	message := fmt.Sprintf(`{"event":"image_uploaded","session_id":"%s"}`, sessionID)
+	// Broadcast image_added event with page count
+	pageCount := len(sess.Images)
+	message := fmt.Sprintf(`{"event":"image_added","session_id":"%s","page_count":%d}`, sessionID, pageCount)
 	deps.WebSocketHub.Broadcast(sessionID, []byte(message))
 
-	c.JSON(http.StatusOK, gin.H{"message": "image uploaded successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "image uploaded successfully", "page_count": pageCount})
 }

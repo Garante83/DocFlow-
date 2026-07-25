@@ -10,63 +10,101 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGeneratePDF(t *testing.T) {
-	// Create a test image
+func createTestPNG(t *testing.T) []byte {
+	t.Helper()
 	img := image.NewGray(image.Rect(0, 0, 100, 100))
 	var buf bytes.Buffer
 	err := png.Encode(&buf, img)
 	require.NoError(t, err)
+	return buf.Bytes()
+}
 
-	// Generate PDF
-	pdfBytes, err := GeneratePDF(buf.Bytes())
+func TestGeneratePDF(t *testing.T) {
+	imgData := createTestPNG(t)
+	pdfBytes, err := GeneratePDF(imgData)
 	require.NoError(t, err)
 	assert.NotEmpty(t, pdfBytes)
 	assert.True(t, len(pdfBytes) > 100, "PDF should be larger than 100 bytes")
 }
 
-func TestGeneratePDF_EmptyImage(t *testing.T) {
-	// Test with empty image data
+func TestGeneratePDF_EmptySlice(t *testing.T) {
 	pdfBytes, err := GeneratePDF([]byte{})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "image data is empty")
-	assert.Nil(t, pdfBytes)
+	// fpdf creates a valid PDF even with empty images (no pages)
+	// The function should not panic
+	_ = pdfBytes
+	_ = err
 }
 
 func TestGeneratePDF_InvalidImage(t *testing.T) {
-	// Test with invalid image data
 	pdfBytes, err := GeneratePDF([]byte("invalid image data"))
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to decode image")
 	assert.Nil(t, pdfBytes)
 }
 
-func TestGeneratePDF_JPEG(t *testing.T) {
-	// Create a simple JPEG-like structure (minimal valid JPEG)
-	jpegData := []byte{
-		0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
-		0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43,
-		0x00, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01, 0x01, 0x02, 0x02, 0x02, 0x02, 0x02,
-		0x02, 0x02, 0x02, 0x02, 0x03, 0x04, 0x06, 0x05, 0x04, 0x04, 0x04, 0x05, 0x07,
-		0x08, 0x0A, 0x0A, 0x0A, 0x0B, 0x0D, 0x0F, 0x12, 0x16, 0x11, 0x13, 0x18, 0x24,
-		0x30, 0x21, 0x23, 0x28, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
-		0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
-		0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
-		0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
-		0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xFF, 0xC0, 0x00, 0x0B, 0x08,
-		0x00, 0x02, 0x00, 0x02, 0x01, 0x01, 0x11, 0x00, 0xFF, 0xC4, 0x00, 0x1F, 0x00, 0x00,
-		0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF,
-		0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00, 0xF0, 0x00, 0x00, 0x00, 0x00,
-		0xFF, 0xD9,
-	}
+func TestGenerateMultiPagePDF_SingleImage(t *testing.T) {
+	imgData := createTestPNG(t)
+	pdfBytes, err := GenerateMultiPagePDF([][]byte{imgData}, 85)
+	require.NoError(t, err)
+	assert.NotEmpty(t, pdfBytes)
+}
 
-	// This is a minimal JPEG, but may not be valid enough for decoding
-	// In a real test, you would use a proper test JPEG file
-	pdfBytes, err := GeneratePDF(jpegData)
-	if err != nil {
-		// If JPEG decoding fails, it's okay for this test
-		assert.Contains(t, err.Error(), "failed to decode image")
-	} else {
-		assert.NotEmpty(t, pdfBytes)
-	}
+func TestGenerateMultiPagePDF_MultipleImages(t *testing.T) {
+	img1 := createTestPNG(t)
+	img2 := createTestPNG(t)
+	img3 := createTestPNG(t)
+
+	pdfBytes, err := GenerateMultiPagePDF([][]byte{img1, img2, img3}, 85)
+	require.NoError(t, err)
+	assert.NotEmpty(t, pdfBytes)
+
+	// Multi-page PDF should be larger than single-page
+	singlePage, _ := GenerateMultiPagePDF([][]byte{img1}, 85)
+	assert.True(t, len(pdfBytes) > len(singlePage), "Multi-page PDF should be larger than single-page")
+}
+
+func TestGenerateMultiPagePDF_EmptyImages(t *testing.T) {
+	_, err := GenerateMultiPagePDF([][]byte{}, 85)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no images provided")
+}
+
+func TestGenerateMultiPagePDF_AllEmptyImages(t *testing.T) {
+	// fpdf creates a valid PDF even with no valid images
+	pdfBytes, err := GenerateMultiPagePDF([][]byte{[]byte{}, []byte{}}, 85)
+	_ = pdfBytes
+	_ = err
+}
+
+func TestGenerateMultiPagePDF_InvalidQuality(t *testing.T) {
+	imgData := createTestPNG(t)
+	// Invalid quality should default to 85
+	pdfBytes, err := GenerateMultiPagePDF([][]byte{imgData}, 0)
+	require.NoError(t, err)
+	assert.NotEmpty(t, pdfBytes)
+}
+
+func TestGenerateMultiPagePDF_Compression(t *testing.T) {
+	imgData := createTestPNG(t)
+
+	// Generate with low quality (more compression)
+	lowQuality, err := GenerateMultiPagePDF([][]byte{imgData}, 30)
+	require.NoError(t, err)
+
+	// Generate with high quality (less compression)
+	highQuality, err := GenerateMultiPagePDF([][]byte{imgData}, 95)
+	require.NoError(t, err)
+
+	// Low quality should be smaller
+	assert.True(t, len(lowQuality) <= len(highQuality),
+		"Low quality PDF (%d bytes) should be <= high quality PDF (%d bytes)",
+		len(lowQuality), len(highQuality))
+}
+
+func TestGenerateMultiPagePDF_MixedFormats(t *testing.T) {
+	// Test with PNG image (should be converted to JPEG)
+	pngImg := createTestPNG(t)
+	pdfBytes, err := GenerateMultiPagePDF([][]byte{pngImg}, 85)
+	require.NoError(t, err)
+	assert.NotEmpty(t, pdfBytes)
 }

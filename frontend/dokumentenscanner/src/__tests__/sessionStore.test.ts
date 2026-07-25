@@ -118,7 +118,7 @@ describe('sessionStore', () => {
       store.setPIN('123456')
       store.setStatus('uploaded')
       store.incrementFailedAttempts()
-      store.setImage('some-file')
+      store.addImage(new File(['test'], 'test.jpg', { type: 'image/jpeg' }))
       store.setPDF('some-blob')
 
       store.reset()
@@ -127,10 +127,58 @@ describe('sessionStore', () => {
       expect(store.status).toBe('waiting_for_pin')
       expect(store.pin).toBe('')
       expect(store.failedAttempts).toBe(0)
-      expect(store.imageData).toBeNull()
+      expect(store.images).toHaveLength(0)
       expect(store.pdfData).toBeNull()
       expect(store.lockedUntil).toBeNull()
       expect(store.isActive).toBe(false)
+    })
+  })
+
+  describe('addImage / removeImage', () => {
+    it('should add images and track count', () => {
+      const store = useSessionStore()
+      expect(store.imageCount).toBe(0)
+      expect(store.hasImages).toBe(false)
+
+      store.addImage(new File(['a'], 'a.jpg', { type: 'image/jpeg' }))
+      expect(store.imageCount).toBe(1)
+      expect(store.hasImages).toBe(true)
+
+      store.addImage(new File(['b'], 'b.jpg', { type: 'image/jpeg' }))
+      expect(store.imageCount).toBe(2)
+    })
+
+    it('should remove image by index', () => {
+      const store = useSessionStore()
+      store.addImage(new File(['a'], 'a.jpg', { type: 'image/jpeg' }))
+      store.addImage(new File(['b'], 'b.jpg', { type: 'image/jpeg' }))
+      store.addImage(new File(['c'], 'c.jpg', { type: 'image/jpeg' }))
+
+      store.removeImage(1)
+      expect(store.imageCount).toBe(2)
+
+      // First and third should remain
+      expect(store.images[0].name).toBe('a.jpg')
+      expect(store.images[1].name).toBe('c.jpg')
+    })
+
+    it('should handle out of bounds remove gracefully', () => {
+      const store = useSessionStore()
+      store.addImage(new File(['a'], 'a.jpg', { type: 'image/jpeg' }))
+      store.removeImage(5)
+      expect(store.imageCount).toBe(1)
+    })
+
+    it('should reorder images', () => {
+      const store = useSessionStore()
+      store.addImage(new File(['a'], 'a.jpg', { type: 'image/jpeg' }))
+      store.addImage(new File(['b'], 'b.jpg', { type: 'image/jpeg' }))
+      store.addImage(new File(['c'], 'c.jpg', { type: 'image/jpeg' }))
+
+      store.reorderImage(0, 2)
+      expect(store.images[0].name).toBe('b.jpg')
+      expect(store.images[1].name).toBe('c.jpg')
+      expect(store.images[2].name).toBe('a.jpg')
     })
   })
 })

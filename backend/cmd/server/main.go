@@ -51,6 +51,7 @@ func setupRouter() *gin.Engine {
 		api.GET("/session/:id/qrcode", handlers.QRCodeHandler)
 		api.POST("/session/:id/upload", handlers.UploadHandler)
 		api.GET("/session/:id/pdf", handlers.PDFHandler)
+		api.POST("/session/:id/finalize", handlers.FinalizeHandler)
 		api.DELETE("/session/:id", handlers.DeleteSessionHandler)
 	}
 

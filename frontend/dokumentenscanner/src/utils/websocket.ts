@@ -8,12 +8,15 @@ export type WebSocketEventType =
   | 'session_created'
   | 'pin_verified'
   | 'image_uploaded'
+  | 'image_added'
   | 'pdf_ready'
   | 'session_locked'
   | 'error'
   | 'status_update'
   | 'download_request'
   | 'download_confirmed'
+  | 'finalize_upload'
+  | 'page_removed'
 
 export interface WebSocketEvent {
   type: WebSocketEventType

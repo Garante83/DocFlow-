@@ -120,12 +120,12 @@ const mountOpts = { global: { plugins: [createPinia()], stubs: { QRCodeDisplay: 
     })
   })
 
-  it('should register image_uploaded handler', async () => {
+  it('should register image_added handler', async () => {
     mockCreateSession.mockResolvedValue({ session_id: 'test-id', pin: '123456' })
     mount(DesktopView, mountOpts)
 
     await vi.waitFor(() => {
-      expect(websocketClient.on).toHaveBeenCalledWith('image_uploaded', expect.any(Function))
+      expect(websocketClient.on).toHaveBeenCalledWith('image_added', expect.any(Function))
     })
   })
 
@@ -148,7 +148,7 @@ const mountOpts = { global: { plugins: [createPinia()], stubs: { QRCodeDisplay: 
 
     wrapper.unmount()
 
-    expect(websocketClient.off).toHaveBeenCalledWith('image_uploaded', expect.any(Function))
+    expect(websocketClient.off).toHaveBeenCalledWith('image_added', expect.any(Function))
     expect(websocketClient.off).toHaveBeenCalledWith('download_confirmed', expect.any(Function))
     expect(websocketClient.disconnect).toHaveBeenCalled()
   })
@@ -184,11 +184,18 @@ const mountOpts = { global: { plugins: [createPinia()], stubs: { QRCodeDisplay: 
       expect(websocketClient.on).toHaveBeenCalled()
     })
 
-    const imageHandler = registeredHandlers.get('image_uploaded')![0]!
-    imageHandler({})
+    // Simulate page received
+    const imageHandler = registeredHandlers.get('image_added')![0]!
+    imageHandler({ page_count: 1 })
     await wrapper.vm.$nextTick()
 
-    const btn = wrapper.find('button')
+    // Simulate PDF ready
+    const pdfHandler = registeredHandlers.get('pdf_ready')![0]!
+    pdfHandler({})
+    await wrapper.vm.$nextTick()
+
+    // Now the Download button should be visible
+    const btn = wrapper.findAll('button').find(b => b.text().includes('Download'))!
     expect(btn.exists()).toBe(true)
     await btn.trigger('click')
 

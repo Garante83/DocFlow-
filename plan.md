@@ -609,3 +609,220 @@ Kritische Lucken in: cmd/server, websocket, handlers/qrcode, handlers/websocket
 - [x] `make all` funktioniert
 
 **Abhangigkeiten:** 3.6 | **Aufwand:** 0.5h
+
+---
+
+## Phase 6: Multi-Page PDF + Komprimierung
+
+> **Ziel**: Handy kann mehrere Fotos zu einer komprimierten PDF zusammenfuehren.
+> **Ablauf**: Handy macht mehrere Fotos -> jede Seite editierbar (Drehen/Crop) -> "Fertig" -> PDF wird generiert -> Desktop laedt herunter.
+
+---
+
+### 6.1 Session-Struct erweitern (Backend)
+**Ziel**: Mehrere Bilder pro Session unterstuetzen.
+
+**Dateien:** `backend/internal/session/session.go` (ANPASSEN)
+
+**Aenderungen:**
+1. `Image []byte` -> `Images [][]byte` (sortierte Slice)
+2. Neuer Status `StatusUploading SessionStatus = "uploading"`
+
+**Akzeptanzkriterien:**
+- [ ] `Images` Feld existiert und ist eine Slice
+- [ ] `StatusUploading` definiert
+- [ ] Alle Referenzen auf `sess.Image` aktualisiert
+
+**Abhangigkeiten:** Keine | **Aufwand:** 0.5h
+
+---
+
+### 6.2 Config-Sektion fuer PDF (Backend)
+**Ziel**: PDF-Komprimierung konfigurierbar machen.
+
+**Dateien:** `backend/internal/config/config.go` (ANPASSEN)
+
+**Aenderungen:**
+1. Neue Config-Sektion `PDF` mit `MaxPages`, `JPEGQuality`, `CompressOutput`
+2. Defaults: `MaxPages: 20`, `JPEGQuality: 85`, `CompressOutput: true`
+
+**Abhangigkeiten:** Keine | **Aufwand:** 0.5h
+
+---
+
+### 6.3 Multi-Page PDF-Generierung + Komprimierung (Backend)
+**Ziel**: Aus mehreren Bildern eine komprimierte PDF erstellen.
+
+**Dateien:** `backend/pkg/utils/pdf.go` (ANPASSEN)
+
+**Aenderungen:**
+1. Neue Funktion `GenerateMultiPagePDF(images [][]byte, quality int) ([]byte, error)`
+2. Pro Bild: Dekodieren -> als JPEG (85%) re-encoden -> RegisterImageReader (kein Temp-File)
+3. Pro Bild: `pdf.AddPage()` -> auf A4 skalieren -> zentrieren -> `pdf.Image()`
+4. Bestehende `GeneratePDF()` als Wrapper
+
+**Abhangigkeiten:** 6.1, 6.2 | **Aufwand:** 2h
+
+---
+
+### 6.4 Upload-Handler anpassen (Backend)
+**Ziel**: Mehrere Bilder pro Session, kein automatischer "Fertig"-Status.
+
+**Dateien:** `backend/internal/handlers/upload.go` (ANPASSEN)
+
+**Aenderungen:**
+1. `sess.Image = buf.Bytes()` -> `sess.Images = append(sess.Images, buf.Bytes())`
+2. Status bleibt `StatusUploadAllowed`
+3. WebSocket-Event `image_added` mit `{page_count: N}`
+4. MaxPages-Check aus Config
+
+**Abhangigkeiten:** 6.1, 6.2 | **Aufwand:** 1h
+
+---
+
+### 6.5 Finalize-Handler (Backend, NEU)
+**Ziel**: Bestaetigung durch Handy, PDF-Generierung triggern.
+
+**Dateien:** `backend/internal/handlers/finalize.go` (NEU)
+
+**Anforderungen:**
+1. `POST /api/session/:id/finalize`
+2. Prueft: Session existiert, mindestens 1 Bild
+3. Generiert PDF via `GenerateMultiPagePDF()`
+4. Setzt Status `StatusReady`, speichert PDF
+5. Broadcastet `pdf_ready` via WebSocket
+
+**Abhangigkeiten:** 6.1, 6.3, 6.4 | **Aufwand:** 1h
+
+---
+
+### 6.6 PDF-Handler anpassen (Backend)
+**Ziel:** Multi-Page-PDF zurueckgeben.
+
+**Dateien:** `backend/internal/handlers/pdf.go` (ANPASSEN)
+
+**Aenderungen:**
+1. `len(sess.Image) == 0` -> `len(sess.Images) == 0`
+2. Guard: Nur wenn Status `StatusReady` oder `StatusUploaded`
+
+**Abhangigkeiten:** 6.1, 6.3, 6.5 | **Aufwand:** 0.5h
+
+---
+
+### 6.7 Route registrieren (Backend)
+**Dateien:** `backend/cmd/server/main.go` (ANPASSEN)
+
+**Aenderung:** `api.POST("/session/:id/finalize", handlers.FinalizeHandler)` hinzufuegen
+
+**Abhangigkeiten:** 6.5 | **Aufwand:** 0.25h
+
+---
+
+### 6.8 WebSocket-Events erweitern (Frontend)
+**Dateien:** `frontend/dokumentenscanner/src/utils/websocket.ts` (ANPASSEN)
+
+**Aenderungen:** Neue Event-Typen: `image_added`, `finalize_upload`, `page_removed`
+
+**Abhangigkeiten:** Keine | **Aufwand:** 0.25h
+
+---
+
+### 6.9 API-Service erweitern (Frontend)
+**Dateien:** `frontend/dokumentenscanner/src/utils/api.ts` (ANPASSEN)
+
+**Aenderungen:**
+1. Neue Funktion `finalizeUpload(sessionID: string): Promise<void>`
+2. Axios-Timeout 30000 -> 60000
+
+**Abhangigkeiten:** Keine | **Aufwand:** 0.25h
+
+---
+
+### 6.10 Session-Store erweitern (Frontend)
+**Dateien:** `frontend/dokumentenscanner/src/stores/sessionStore.ts` (ANPASSEN)
+
+**Aenderungen:**
+1. `imageData: File | null` -> `images: File[]`
+2. `setImage()` -> `addImage(image: File)`
+3. Neue: `removeImage(index)`, `imageCount` computed
+
+**Abhangigkeiten:** Keine | **Aufwand:** 0.5h
+
+---
+
+### 6.11 ImageUpload.vue erweitern (Frontend)
+**Ziel:** Multi-Page-Upload-UI mit Seitenliste und Loeschen.
+
+**Dateien:** `frontend/dokumentenscanner/src/components/ImageUpload.vue` (ANPASSEN)
+
+**Aenderungen:**
+1. Nach Upload: Zurueck in choose-Modus
+2. Seitenliste mit Thumbnails, Loeschen, Drehen
+3. "Fertig" Button sendet `finalize_upload` via WebSocket
+4. Button-Text: "Seite hinzufuegen"
+
+**Abhangigkeiten:** 6.10 | **Aufwand:** 2.5h
+
+---
+
+### 6.12 MobileView.vue anpassen (Frontend)
+**Dateien:** `frontend/dokumentenscanner/src/views/MobileView.vue` (ANPASSEN)
+
+**Aenderungen:**
+1. Neue View-States: `uploading` -> `finalize` -> `confirm_download` -> `done`
+2. Nach Upload: Seite hinzufuegen oder Fertig
+3. `pdf_ready`-Listener
+
+**Abhangigkeiten:** 6.11 | **Aufwand:** 1.5h
+
+---
+
+### 6.13 DesktopView.vue anpassen (Frontend)
+**Dateien:** `frontend/dokumentenscanner/src/views/DesktopView.vue` (ANPASSEN)
+
+**Aenderungen:**
+1. `image_added` mit Seitenzaehler
+2. View-State `waiting_pages`: "X Seiten empfangen..."
+3. `pdf_ready`-Listener: Download-Button
+
+**Abhangigkeiten:** 6.8 | **Aufwand:** 1h
+
+---
+
+### 6.14 Backend Tests
+**Dateien:** session_test.go, upload_test.go, integration_test.go, pdf_test.go, finalize_test.go (NEU)
+
+**Abhangigkeiten:** 6.1-6.7 | **Aufwand:** 2h
+
+---
+
+### 6.15 Frontend Tests
+**Dateien:** sessionStore.test.ts, MobileView.test.ts, DesktopView.test.ts, api.test.ts
+
+**Abhangigkeiten:** 6.8-6.13 | **Aufwand:** 1.5h
+
+---
+
+## Meilensteine Phase 6
+
+| Aufgabe | Beschreibung | Status | Aufwand |
+|---------|--------------|--------|---------|
+| 6.1 | Session-Struct erweitern | ⬜ | 0.5h |
+| 6.2 | Config-Sektion PDF | ⬜ | 0.5h |
+| 6.3 | Multi-Page PDF + Komprimierung | ⬜ | 2h |
+| 6.4 | Upload-Handler anpassen | ⬜ | 1h |
+| 6.5 | Finalize-Handler (NEU) | ⬜ | 1h |
+| 6.6 | PDF-Handler anpassen | ⬜ | 0.5h |
+| 6.7 | Route registrieren | ⬜ | 0.25h |
+| 6.8 | WebSocket-Events (Frontend) | ⬜ | 0.25h |
+| 6.9 | API-Service (Frontend) | ⬜ | 0.25h |
+| 6.10 | Session-Store (Frontend) | ⬜ | 0.5h |
+| 6.11 | ImageUpload.vue Multi-Page | ⬜ | 2.5h |
+| 6.12 | MobileView.vue Finalize-Flow | ⬜ | 1.5h |
+| 6.13 | DesktopView.vue Seitenzaehler | ⬜ | 1h |
+| 6.14 | Backend Tests | ⬜ | 2h |
+| 6.15 | Frontend Tests | ⬜ | 1.5h |
+
+**Empfohlene Reihenfolge:** 6.1 -> 6.2 -> 6.3 -> 6.4 -> 6.5 -> 6.6 -> 6.7 -> 6.8 -> 6.9 -> 6.10 -> 6.11 -> 6.12 -> 6.13 -> 6.14 -> 6.15
+
+*Letzte Aktualisierung: 2026-07-25*

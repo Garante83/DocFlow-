@@ -9,7 +9,7 @@ import { useSessionStore } from '../stores/sessionStore'
 // When embedded in backend, use relative paths (baseURL will be empty/undefined)
 const api = axios.create({
   baseURL: import.meta.env.VITE_BACKEND_URL || '',
-  timeout: 30000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -88,6 +88,7 @@ export interface VerifyPINResponse {
 export interface UploadImageResponse {
   image_id: string
   message: string
+  page_count?: number
   pdf_url?: string
 }
 
@@ -148,8 +149,14 @@ export const apiService = {
     return {
       image_id: sessionID,
       message: response.data.message || 'Image uploaded successfully',
+      page_count: response.data.page_count,
       pdf_url: response.data.pdf_url
     }
+  },
+
+  // Finalize upload and generate PDF
+  async finalizeUpload(sessionID: string): Promise<void> {
+    await api.post(`/api/session/${sessionID}/finalize`)
   },
 
   // PDF generation and retrieval

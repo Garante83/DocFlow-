@@ -4,86 +4,92 @@ import (
 	"bytes"
 	"fmt"
 	"image"
-	_ "image/jpeg"
-	_ "image/png"
-	"os"
-	"path/filepath"
+	"image/jpeg"
 
 	"github.com/go-pdf/fpdf"
 )
 
 // PDF configuration constants
 const (
-	// A4 page dimensions in mm
 	pageWidthMM  = 210.0
 	pageHeightMM = 297.0
-	// Margin from page edges in mm
 	pageMarginMM = 20.0
-	// Temp file prefix
-	tempFilePrefix = "dokumentenscanner"
-	// Temp file permissions (read/write for owner, read for group/others)
-	tempFileMode = 0644
 )
 
-// GeneratePDF generates a PDF from an image.
+// GeneratePDF generates a single-page PDF from a single image (backward-compatible wrapper).
 func GeneratePDF(img []byte) ([]byte, error) {
-	// Validate image data
-	if len(img) == 0 {
-		return nil, fmt.Errorf("image data is empty")
+	return GenerateMultiPagePDF([][]byte{img}, 85)
+}
+
+// GenerateMultiPagePDF generates a multi-page PDF from multiple images with JPEG compression.
+func GenerateMultiPagePDF(images [][]byte, jpegQuality int) ([]byte, error) {
+	if len(images) == 0 {
+		return nil, fmt.Errorf("no images provided")
+	}
+	if jpegQuality < 1 || jpegQuality > 100 {
+		jpegQuality = 85
 	}
 
-	// Decode to get dimensions and format
-	decodedImg, format, err := image.Decode(bytes.NewReader(img))
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode image: %v", err)
-	}
-
-	bounds := decodedImg.Bounds()
-	imgWidth := float64(bounds.Dx())
-	imgHeight := float64(bounds.Dy())
-
-	// Determine file extension based on format
-	ext := ".png"
-	if format == "jpeg" {
-		ext = ".jpg"
-	}
-
-	// Create temp file
-	tmpDir := os.TempDir()
-	tmpFile := filepath.Join(tmpDir, tempFilePrefix+ext)
-	if err := os.WriteFile(tmpFile, img, tempFileMode); err != nil {
-		return nil, fmt.Errorf("failed to write temp file: %v", err)
-	}
-	defer os.Remove(tmpFile)
-
-	// Create PDF
 	pdf := fpdf.New("P", "mm", "A4", "")
-	pdf.AddPage()
+	pdf.SetAutoPageBreak(false, 0)
 
-	// Calculate scale to fit on page with margins
-	scale := 1.0
-	if imgWidth > pageWidthMM-pageMarginMM {
-		scale = (pageWidthMM - pageMarginMM) / imgWidth
+	for i, imgData := range images {
+		if len(imgData) == 0 {
+			continue
+		}
+
+		// Decode image to get dimensions and format
+		decodedImg, format, err := image.Decode(bytes.NewReader(imgData))
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode image %d: %v", i, err)
+		}
+
+		// Re-encode as JPEG for compression (converts PNG/WebP to JPEG)
+		var jpegBuf bytes.Buffer
+		switch format {
+		case "jpeg":
+			jpegBuf.Write(imgData)
+		default:
+			if err := jpeg.Encode(&jpegBuf, decodedImg, &jpeg.Options{Quality: jpegQuality}); err != nil {
+				return nil, fmt.Errorf("failed to encode image %d as JPEG: %v", i, err)
+			}
+		}
+
+		// Register image from reader (no temp file needed)
+		imgName := fmt.Sprintf("img_%d", i)
+		info := pdf.RegisterImageReader(imgName, "jpg", &jpegBuf)
+		if info == nil {
+			return nil, fmt.Errorf("failed to register image %d", i)
+		}
+
+		imgW := info.Width()
+		imgH := info.Height()
+
+		// Add page for each image
+		pdf.AddPage()
+
+		// Calculate scale to fit on page with margins
+		scale := 1.0
+		if imgW > pageWidthMM-pageMarginMM {
+			scale = (pageWidthMM - pageMarginMM) / imgW
+		}
+		if imgH*scale > pageHeightMM-pageMarginMM {
+			scale = (pageHeightMM - pageMarginMM) / imgH
+		}
+
+		// Center image on page
+		x := (pageWidthMM - imgW*scale) / 2
+		y := (pageHeightMM - imgH*scale) / 2
+
+		pdf.Image(imgName, x, y, imgW*scale, imgH*scale, false, "", 0, "")
 	}
-	if imgHeight*scale > pageHeightMM-pageMarginMM {
-		scale = (pageHeightMM - pageMarginMM) / imgHeight
-	}
-
-	// Center the image on the page
-	x := (pageWidthMM - imgWidth*scale) / 2
-	y := (pageHeightMM - imgHeight*scale) / 2
-
-	// Add image to PDF
-	pdf.Image(tmpFile, x, y, imgWidth*scale, imgHeight*scale, false, "", 0, "")
 
 	// Generate PDF bytes
 	var buf bytes.Buffer
-	err = pdf.Output(&buf)
-	if err != nil {
+	if err := pdf.Output(&buf); err != nil {
 		return nil, fmt.Errorf("failed to generate PDF: %v", err)
 	}
 
-	// Validate PDF was generated
 	pdfBytes := buf.Bytes()
 	if len(pdfBytes) == 0 {
 		return nil, fmt.Errorf("generated PDF is empty")

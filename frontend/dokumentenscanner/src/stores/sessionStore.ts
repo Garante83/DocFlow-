@@ -1,5 +1,5 @@
 // Session Store for Dokumentenscanner
-// Manages session state, PIN verification, and image upload status
+// Manages session state, PIN verification, and multi-page image upload status
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
@@ -7,7 +7,7 @@ import { ref, computed } from 'vue'
 /**
  * Session Status Enum
  */
-export type SessionStatus = 'waiting_for_pin' | 'upload_allowed' | 'uploaded' | 'ready' | 'downloaded'
+export type SessionStatus = 'waiting_for_pin' | 'upload_allowed' | 'uploading' | 'uploaded' | 'ready' | 'downloaded'
 
 /**
  * Session Store - Central state management for the scanning session
@@ -16,7 +16,7 @@ export const useSessionStore = defineStore('session', () => {
   // State
   const sessionID = ref<string | null>(null)
   const status = ref<SessionStatus>('waiting_for_pin')
-  const imageData = ref<string | File | null>(null)
+  const images = ref<File[]>([])
   const pdfData = ref<string | Blob | null>(null)
   const pin = ref<string>('')
   const failedAttempts = ref<number>(0)
@@ -31,6 +31,8 @@ export const useSessionStore = defineStore('session', () => {
     return new Date() < lockedUntil.value
   })
   const apiBaseURL = computed(() => backendURL.value)
+  const imageCount = computed(() => images.value.length)
+  const hasImages = computed(() => images.value.length > 0)
 
   // Actions
   function setSessionID(id: string) {
@@ -41,8 +43,20 @@ export const useSessionStore = defineStore('session', () => {
     status.value = newStatus
   }
 
-  function setImage(image: string | File) {
-    imageData.value = image
+  function addImage(image: File) {
+    images.value.push(image)
+  }
+
+  function removeImage(index: number) {
+    if (index >= 0 && index < images.value.length) {
+      images.value.splice(index, 1)
+    }
+  }
+
+  function reorderImage(from: number, to: number) {
+    if (from < 0 || from >= images.value.length || to < 0 || to >= images.value.length) return
+    const [item] = images.value.splice(from, 1)
+    images.value.splice(to, 0, item)
   }
 
   function setPDF(pdf: string | Blob) {
@@ -74,7 +88,7 @@ export const useSessionStore = defineStore('session', () => {
   function reset() {
     sessionID.value = null
     status.value = 'waiting_for_pin'
-    imageData.value = null
+    images.value = []
     pdfData.value = null
     pin.value = ''
     failedAttempts.value = 0
@@ -84,7 +98,7 @@ export const useSessionStore = defineStore('session', () => {
   return {
     sessionID,
     status,
-    imageData,
+    images,
     pdfData,
     pin,
     failedAttempts,
@@ -94,9 +108,13 @@ export const useSessionStore = defineStore('session', () => {
     isActive,
     isLocked,
     apiBaseURL,
+    imageCount,
+    hasImages,
     setSessionID,
     setStatus,
-    setImage,
+    addImage,
+    removeImage,
+    reorderImage,
     setPDF,
     setPIN,
     incrementFailedAttempts,

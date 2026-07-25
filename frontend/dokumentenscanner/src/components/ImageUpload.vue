@@ -4,7 +4,7 @@ import { useSessionStore } from '../stores/sessionStore'
 import { apiService } from '../utils/api'
 
 interface Emits {
-  (e: 'uploaded'): void
+  (e: 'pageAdded', data: { page_count: number }): void
   (e: 'back'): void
 }
 
@@ -389,16 +389,21 @@ async function uploadFile() {
       fileToUpload = await rotateImage(fileToUpload, rotation.value)
     }
 
-    await apiService.uploadImage(sessionStore.sessionID, fileToUpload)
-    sessionStore.setImage(fileToUpload)
-    sessionStore.setStatus('uploaded')
-    emit('uploaded')
-    successMessage.value = 'Image uploaded successfully!'
+    const response = await apiService.uploadImage(sessionStore.sessionID, fileToUpload)
+    sessionStore.addImage(fileToUpload)
+    sessionStore.setStatus('uploading')
+    emit('pageAdded', { page_count: response.page_count || sessionStore.imageCount })
+    successMessage.value = 'Page added successfully!'
 
+    // Reset to choose mode for next page
     if (previewUrl.value) {
       URL.revokeObjectURL(previewUrl.value)
       previewUrl.value = null
     }
+    selectedFile.value = null
+    rotation.value = 0
+    showCrop.value = false
+    mode.value = 'choose'
   } catch (error) {
     errorMessage.value = 'Upload failed. Please try again.'
     console.error('Upload error:', error)
@@ -460,6 +465,23 @@ onUnmounted(() => {
       />
 
       <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
+
+      <!-- Page list -->
+      <div v-if="sessionStore.imageCount > 0" class="page-list">
+        <h3 class="page-list-title">{{ sessionStore.imageCount }} {{ sessionStore.imageCount === 1 ? 'Page' : 'Pages' }}</h3>
+        <div class="page-items">
+          <div v-for="(file, index) in sessionStore.images" :key="index" class="page-item">
+            <img :src="URL.createObjectURL(file)" class="page-thumb" />
+            <span class="page-number">{{ index + 1 }}</span>
+            <button @click="sessionStore.removeImage(index)" class="page-remove" title="Remove page">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
     </template>
 
     <!-- ==================== CAMERA MODE ==================== -->
@@ -522,7 +544,7 @@ onUnmounted(() => {
         <button @click="resetEdit" class="btn btn-secondary" :disabled="isUploading">Back</button>
         <button @click="uploadFile" class="btn btn-primary" :disabled="!canUpload">
           <span v-if="isUploading">Uploading...</span>
-          <span v-else>Upload & Convert to PDF</span>
+          <span v-else>Add Page</span>
         </button>
       </div>
     </template>
@@ -577,6 +599,33 @@ onUnmounted(() => {
 .header h2 { font-size: 1.4rem; font-weight: 700; color: var(--color-text); margin-bottom: 4px; }
 .info { color: var(--color-text-secondary); font-size: 0.9rem; }
 .file-input { display: none; }
+
+/* PAGE LIST */
+.page-list { width: 100%; }
+.page-list-title {
+  font-size: 0.95rem; font-weight: 600; color: var(--color-text-secondary);
+  margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.page-items { display: flex; flex-wrap: wrap; gap: 8px; }
+.page-item {
+  position: relative; width: 80px; height: 100px;
+  border: 2px solid var(--color-border); border-radius: var(--radius-sm);
+  overflow: hidden; background: white;
+}
+.page-thumb { width: 100%; height: 70px; object-fit: cover; }
+.page-number {
+  display: block; text-align: center; font-size: 0.75rem; font-weight: 600;
+  color: var(--color-text-secondary); padding: 2px 0;
+}
+.page-remove {
+  position: absolute; top: 4px; right: 4px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(239, 68, 68, 0.9); border: none;
+  color: white; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  transition: var(--transition);
+}
+.page-remove:hover { background: #dc2626; transform: scale(1.1); }
 
 /* CHOOSE */
 .choose-actions { display: flex; gap: 16px; width: 100%; }

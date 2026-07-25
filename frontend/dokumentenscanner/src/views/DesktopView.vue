@@ -7,16 +7,18 @@ import QRCodeDisplay from '../components/QRCodeDisplay.vue'
 
 const sessionStore = useSessionStore()
 
-type ViewState = 'loading' | 'error' | 'qr_display' | 'confirm_download' | 'waiting_confirm'
+type ViewState = 'loading' | 'error' | 'qr_display' | 'waiting_pages' | 'confirm_download' | 'waiting_confirm'
 const currentView = ref<ViewState>('loading')
 const errorMessage = ref<string | null>(null)
+const pageCount = ref(0)
 
 onMounted(async () => {
   await initializeSession()
 })
 
 onUnmounted(() => {
-  websocketClient.off('image_uploaded', onImageUploaded)
+  websocketClient.off('image_added', onImageAdded)
+  websocketClient.off('pdf_ready', onPdfReady)
   websocketClient.off('download_confirmed', onDownloadConfirmed)
   websocketClient.disconnect()
 })
@@ -24,8 +26,10 @@ onUnmounted(() => {
 async function initializeSession() {
   currentView.value = 'loading'
   errorMessage.value = null
+  pageCount.value = 0
 
-  websocketClient.off('image_uploaded', onImageUploaded)
+  websocketClient.off('image_added', onImageAdded)
+  websocketClient.off('pdf_ready', onPdfReady)
   websocketClient.off('download_confirmed', onDownloadConfirmed)
 
   try {
@@ -36,7 +40,8 @@ async function initializeSession() {
 
     websocketClient.connect(response.session_id)
 
-    websocketClient.on('image_uploaded', onImageUploaded)
+    websocketClient.on('image_added', onImageAdded)
+    websocketClient.on('pdf_ready', onPdfReady)
     websocketClient.on('download_confirmed', onDownloadConfirmed)
 
     currentView.value = 'qr_display'
@@ -47,7 +52,13 @@ async function initializeSession() {
   }
 }
 
-function onImageUploaded() {
+function onImageAdded(data: unknown) {
+  const event = data as { page_count?: number }
+  pageCount.value = event.page_count || pageCount.value + 1
+  currentView.value = 'waiting_pages'
+}
+
+function onPdfReady() {
   currentView.value = 'confirm_download'
 }
 
@@ -108,15 +119,28 @@ async function downloadPDF() {
       <!-- QR Code + PIN display -->
       <QRCodeDisplay v-else-if="currentView === 'qr_display'" />
 
-      <!-- Image received + Download -->
+      <!-- Waiting for pages -->
+      <div v-else-if="currentView === 'waiting_pages'" class="card">
+        <div class="page-counter">
+          <span class="page-count">{{ pageCount }}</span>
+          <span class="page-label">{{ pageCount === 1 ? 'Page' : 'Pages' }} Received</span>
+        </div>
+        <p class="info">The phone is adding pages to the document. Waiting for finalization...</p>
+        <div class="pulse-ring small">
+          <div class="pulse-ring-inner"></div>
+        </div>
+      </div>
+
+      <!-- PDF ready + Download -->
       <div v-else-if="currentView === 'confirm_download'" class="card">
         <div class="success-icon">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
         </div>
-        <h2>Image Received</h2>
-        <p class="info">A document has been uploaded and is ready for download.</p>
+        <h2>Document Ready</h2>
+        <p class="info" v-if="pageCount > 0">{{ pageCount }} {{ pageCount === 1 ? 'page' : 'pages' }} — PDF is ready for download.</p>
+        <p class="info" v-else>The document has been processed and is ready for download.</p>
         <button @click="requestDownload" class="btn btn-primary btn-lg">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -264,6 +288,31 @@ async function downloadPDF() {
   font-size: 0.95rem;
 }
 
+/* Page Counter */
+.page-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.page-count {
+  font-size: 3rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.page-label {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 /* Spinner */
 .spinner {
   width: 44px;
@@ -288,6 +337,16 @@ async function downloadPDF() {
   align-items: center;
   justify-content: center;
   animation: pulse-ring-anim 2s ease-in-out infinite;
+}
+
+.pulse-ring.small {
+  width: 48px;
+  height: 48px;
+}
+
+.pulse-ring.small .pulse-ring-inner {
+  width: 28px;
+  height: 28px;
 }
 
 .pulse-ring-inner {

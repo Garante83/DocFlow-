@@ -13,6 +13,7 @@ type SessionStatus string
 const (
 	StatusWaitingForPIN SessionStatus = "waiting_for_pin"
 	StatusUploadAllowed SessionStatus = "upload_allowed"
+	StatusUploading     SessionStatus = "uploading"
 	StatusUploaded      SessionStatus = "uploaded"
 	StatusReady         SessionStatus = "ready"
 	StatusDownloaded    SessionStatus = "downloaded"
@@ -22,13 +23,18 @@ const (
 type Session struct {
 	ID             uuid.UUID
 	PIN            string
-	Image          []byte
+	Images         [][]byte
 	PDF            []byte
 	Status         SessionStatus
 	CreatedAt      time.Time
 	ExpiresAt      time.Time
 	FailedAttempts int
 	LockedUntil    time.Time
+}
+
+// ImageCount returns the number of images in the session.
+func (s *Session) ImageCount() int {
+	return len(s.Images)
 }
 
 // Store manages sessions in memory with thread safety.

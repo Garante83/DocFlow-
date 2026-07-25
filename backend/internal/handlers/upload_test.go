@@ -114,7 +114,7 @@ func TestUploadHandlerSuccess(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var uploadResp map[string]string
+	var uploadResp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &uploadResp)
 	require.NoError(t, err)
 	assert.Equal(t, "image uploaded successfully", uploadResp["message"])

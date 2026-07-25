@@ -34,6 +34,12 @@ type Config struct {
 		AllowedTypes  []string `mapstructure:"allowed_types" json:"allowed_types"`
 	} `mapstructure:"upload" json:"upload"`
 
+	PDF struct {
+		MaxPages       int  `mapstructure:"max_pages" json:"max_pages"`
+		JPEGQuality    int  `mapstructure:"jpeg_quality" json:"jpeg_quality"`
+		CompressOutput bool `mapstructure:"compress_output" json:"compress_output"`
+	} `mapstructure:"pdf" json:"pdf"`
+
 	WebSocket struct {
 		ReadDeadline    time.Duration `mapstructure:"read_deadline" json:"read_deadline"`
 		PingInterval    time.Duration `mapstructure:"ping_interval" json:"ping_interval"`
@@ -66,6 +72,11 @@ func DefaultConfig() *Config {
 	// Upload
 	cfg.Upload.MaxFileSizeMB = 10
 	cfg.Upload.AllowedTypes = []string{"image/jpeg", "image/png", "image/webp"}
+
+	// PDF
+	cfg.PDF.MaxPages = 20
+	cfg.PDF.JPEGQuality = 85
+	cfg.PDF.CompressOutput = true
 
 	// WebSocket
 	cfg.WebSocket.ReadDeadline = 60 * time.Second

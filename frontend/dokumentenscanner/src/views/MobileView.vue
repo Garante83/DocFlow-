@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSessionStore } from '../stores/sessionStore'
+import { apiService } from '../utils/api'
 import { websocketClient } from '../utils/websocket'
 import PINInput from '../components/PINInput.vue'
 import ImageUpload from '../components/ImageUpload.vue'
@@ -9,12 +10,13 @@ import ImageUpload from '../components/ImageUpload.vue'
 const route = useRoute()
 const sessionStore = useSessionStore()
 
-type ViewState = 'loading' | 'error' | 'pin' | 'upload' | 'done' | 'confirm_download'
+type ViewState = 'loading' | 'error' | 'pin' | 'upload' | 'finalize' | 'confirm_download' | 'done'
 const currentView = ref<ViewState>('loading')
 const errorMessage = ref<string | null>(null)
+const pageCount = ref(0)
 
 function handleDownloadRequestEvent() {
-  if (currentView.value === 'done') {
+  if (currentView.value === 'done' || currentView.value === 'finalize') {
     currentView.value = 'confirm_download'
   }
 }
@@ -41,13 +43,28 @@ function handlePINVerified() {
   sessionStore.setStatus('upload_allowed')
 }
 
-function handleImageUploaded() {
-  currentView.value = 'done'
-  sessionStore.setStatus('uploaded')
+function handlePageAdded(data: unknown) {
+  const event = data as { page_count?: number }
+  pageCount.value = event.page_count || sessionStore.imageCount
+  sessionStore.setStatus('uploading')
+  // Stay in upload view so user can add more pages
 }
 
 function handleBackToPIN() {
   currentView.value = 'pin'
+}
+
+async function handleFinalize() {
+  if (!sessionStore.sessionID) return
+  try {
+    currentView.value = 'finalize'
+    await apiService.finalizeUpload(sessionStore.sessionID)
+    sessionStore.setStatus('uploaded')
+  } catch (error) {
+    console.error('Finalize failed:', error)
+    errorMessage.value = 'Failed to generate PDF. Please try again.'
+    currentView.value = 'upload'
+  }
 }
 
 function confirmDownload() {
@@ -89,9 +106,16 @@ function confirmDownload() {
       <!-- Image upload -->
       <ImageUpload
         v-else-if="currentView === 'upload'"
-        @uploaded="handleImageUploaded"
+        @page-added="handlePageAdded"
         @back="handleBackToPIN"
       />
+
+      <!-- Finalize: generating PDF -->
+      <div v-else-if="currentView === 'finalize'" class="card">
+        <div class="spinner"></div>
+        <h2>Generating PDF</h2>
+        <p class="info">Processing {{ pageCount }} {{ pageCount === 1 ? 'page' : 'pages' }}...</p>
+      </div>
 
       <!-- Download confirmation -->
       <div v-else-if="currentView === 'confirm_download'" class="card">
