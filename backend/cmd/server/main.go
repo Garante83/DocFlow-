@@ -41,30 +41,7 @@ func readEmbeddedFile(name string) []byte {
 	return data
 }
 
-func main() {
-	// 1. Konfiguration laden
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		slog.Error("Failed to load config", "error", err)
-		os.Exit(1)
-	}
-
-	// 2. Logger einrichten
-	setupLogger(cfg)
-
-	// 3. Session-Store mit Config-Werten initialisieren
-	sessionStore := session.NewStore()
-	cleanupStop := make(chan struct{})
-	go sessionStore.StartCleanup(cfg.Session.CleanupInterval)
-
-	// 4. WebSocket-Hub initialisieren
-	hub := websocket.NewHub()
-	go hub.Run()
-
-	// 5. Handler mit Abhaengigkeiten initialisieren
-	handlers.Init(sessionStore, hub, cfg)
-
-	// 6. Router einrichten
+func setupRouter() *gin.Engine {
 	r := gin.Default()
 
 	api := r.Group("/api")
@@ -139,6 +116,35 @@ func main() {
 		c.Header("Content-Type", "text/html; charset=utf-8")
 		c.String(200, string(content))
 	})
+
+	return r
+}
+
+func main() {
+	// 1. Konfiguration laden
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		slog.Error("Failed to load config", "error", err)
+		os.Exit(1)
+	}
+
+	// 2. Logger einrichten
+	setupLogger(cfg)
+
+	// 3. Session-Store mit Config-Werten initialisieren
+	sessionStore := session.NewStore()
+	cleanupStop := make(chan struct{})
+	go sessionStore.StartCleanup(cfg.Session.CleanupInterval)
+
+	// 4. WebSocket-Hub initialisieren
+	hub := websocket.NewHub()
+	go hub.Run()
+
+	// 5. Handler mit Abhaengigkeiten initialisieren
+	handlers.Init(sessionStore, hub, cfg)
+
+	// 6. Router einrichten
+	r := setupRouter()
 
 	// Write embedded cert/key to temp files for TLS
 	certFile := writeTempFile("cert.pem", readEmbeddedFile("cert.pem"))
