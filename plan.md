@@ -954,13 +954,112 @@ Kritische Lucken in: cmd/server, websocket, handlers/qrcode, handlers/websocket
 
 | Aufgabe | Beschreibung | Status | Aufwand |
 |---------|--------------|--------|---------|
-| 7.1 | LICENSE-File | ⬜ | 0.1h |
-| 7.2 | TLS-Pattern fixen | ⬜ | 1h |
-| 7.3 | Rate-Limiting + Security-Headers | ⬜ | 1.5h |
-| 7.4 | Cleanup-Goroutine Stop | ⬜ | 0.5h |
-| 7.5 | PRIVACY.md | ⬜ | 0.5h |
+| 7.1 | LICENSE-File (MIT) | ✅ | 0.1h |
+| 7.2 | TLS-Pattern fixen (Keys aus Binary) | ✅ | 1h |
+| 7.3 | Security-Headers (HSTS, CSP, etc.) | ✅ | 1.5h |
+| 7.4 | Cleanup-Goroutine Stop | ✅ | 0.5h |
+| 7.5 | PRIVACY.md (DSGVO Art. 13) | ✅ | 0.5h |
 | 7.6 | README auf Englisch | ⬜ | 1h |
 
 **Empfohlene Reihenfolge:** 7.1 -> 7.5 -> 7.2 -> 7.3 -> 7.4 -> 7.6
+
+---
+
+## Phase 8: Open Source Finish + Rate-Limiting
+
+> **Ziel**: Projekt vollstaendig bereit fuer oeffentliche Verwendung auf Git.
+
+---
+
+### 8.1 Rate-Limiting Middleware
+**Ziel**: Schutz gegen Session-Exhaustion und Missbrauch.
+
+**Datei:** `backend/cmd/server/main.go` (Middleware hinzufuegen)
+
+**Anforderungen:**
+1. Max. 100 Requests/Minute pro IP (konfigurierbar)
+2. Nur auf API-Endpunkte angewendet (nicht WebSocket)
+3. 429-Response bei Ueberschreitung mit Retry-After Header
+
+**Akzeptanzkriterien:**
+- [ ] Rate-Limiting aktiv
+- [ ] 429 mit Retry-After Header
+- [ ] Konfigurierbar ueber Config
+
+**Aufwand:** 1.5h
+
+---
+
+### 8.2 README auf Englisch
+**Ziel**: Fuer Open Source Publikation.
+
+**Datei:** `README.md` (ANPASSEN)
+
+**Aenderungen:**
+1. Englische Version oder bilinguales README
+2. Badges (License, Go Version, CI Status)
+3. CONTRIBUTING.md verlinken
+4. Security-Policy verlinken
+5. Quick-Start-Anleitung aktualisieren
+
+**Aufwand:** 1h
+
+---
+
+### 8.3 CONTRIBUTING.md
+**Ziel**: Fuer Open Source Beitraege.
+
+**Datei:** `CONTRIBUTING.md` (NEU)
+
+**Inhalt:**
+1. Development-Setup
+2. Code-Style (gofmt, ESLint)
+3. Test-Anforderungen
+4. PR-Prozess
+5. Issue-Templates
+
+**Aufwand:** 0.5h
+
+---
+
+### 8.4 ImageUpload: Galerie-Bilder editieren
+**Ziel**: Auch Galerie-Bilder koennen vor dem Upload bearbeitet werden.
+
+**Datei:** `frontend/dokumentenscanner/src/components/ImageUpload.vue`
+
+**Aenderung:**
+- Bei Multi-Select aus Galerie: Erstes Bild im Edit-Modus anzeigen
+- Restliche Bilder in Queue setzen
+- Nach "Add Page" naechstes Queue-Bild im Edit-Modus
+
+**Aufwand:** 1.5h
+
+---
+
+### 8.5 Fehlende Error-Kommunikation (Frontend)
+**Ziel**: Upload-Fehler und PDF-Fehler werden dem Nutzer angezeigt.
+
+**Datei:** `frontend/dokumentenscanner/src/components/ImageUpload.vue`, `frontend/dokumentenscanner/src/views/DesktopView.vue`
+
+**Aenderungen:**
+- Upload-Fehler mit konkreter Meldung (zu gross, falscher Typ, Server-Fehler)
+- PDF-Download-Fehler mit Retry-Moeglichkeit
+- Max-Size-Ueberschreitung auf Handy explizit zeigen
+
+**Aufwand:** 1h
+
+---
+
+## Meilensteine Phase 8
+
+| Aufgabe | Beschreibung | Status | Aufwand |
+|---------|--------------|--------|---------|
+| 8.1 | Rate-Limiting Middleware | ⬜ | 1.5h |
+| 8.2 | README auf Englisch | ⬜ | 1h |
+| 8.3 | CONTRIBUTING.md | ⬜ | 0.5h |
+| 8.4 | ImageUpload Galerie-Edit | ⬜ | 1.5h |
+| 8.5 | Error-Kommunikation Frontend | ⬜ | 1h |
+
+**Empfohlene Reihenfolge:** 8.1 -> 8.2 -> 8.3 -> 8.5 -> 8.4
 
 *Letzte Aktualisierung: 2026-07-25*
