@@ -34,8 +34,8 @@ Der **Dokumentenscanner** ist eine Web-Anwendung, die den Workflow für das Scan
 |---------|--------------|
 | **Session-Management** | Temporäre Sessions mit 6-stelliger PIN und 1h Timeout |
 | **QR-Code-Generierung** | Automatische Erkennung der LAN-IP für einfache Verbindung |
-| **Bild-Upload** | Kamera- oder Datei-Upload mit Client-seitiger Bildbearbeitung (Crop/Rotate) |
-| **PDF-Konvertierung** | Server-seitige Generierung eines PDFs aus dem hochgeladenen Bild |
+| **Multi-Page Upload** | Mehrere Fotos pro Session, Seitenliste mit Löschen, Drehen, Crop |
+| **PDF-Konvertierung** | Server-seitige Generierung einer mehrseitigen PDF mit JPEG-Komprimierung (85%) |
 | **Echtzeit-Kommunikation** | WebSocket-basierte Bestätigung zwischen Desktop und Mobile |
 | **HTTPS** | Selbstsigniertes TLS-Zertifikat (embedded im Binary) |
 
@@ -94,6 +94,7 @@ NeuDocumentenScaner/
 │   │   │   ├── qrcode.go        # QR-Code-Generierung (LAN-IP auto-detect)
 │   │   │   ├── upload.go        # Bild-Upload + WebSocket-Broadcast
 │   │   │   ├── pdf.go           # PDF-Generierung + WebSocket-Broadcast
+│   │   │   ├── finalize.go      # Multi-Page Finalize + PDF-Generierung
 │   │   │   └── websocket.go     # WebSocket-Handler + Origin-Check + Message-Forwarding
 │   │   ├── session/             # Session-Management
 │   │   │   ├── session.go       # Session-Struktur + Store (In-Memory)
@@ -588,21 +589,21 @@ graph TD
 
 | Paket | Coverage |
 |-------|----------|
-| `pkg/utils` | 82.4% |
-| `internal/config` | 74.5% |
-| `internal/session` | 70.0% |
+| `pkg/utils` | 82.5% |
+| `internal/config` | 75.2% |
+| `internal/session` | 68.6% |
 | `internal/handlers` | 71.3% |
 | `internal/websocket` | 93.9% |
-| `cmd/server` | 50.9% |
+| `cmd/server` | 51.4% |
 
 **Frontend** (`npm run test:unit`):
 
 | Datei | Tests |
 |-------|-------|
 | `websocket.test.ts` | 15 |
-| `sessionStore.test.ts` | 16 |
-| `api.test.ts` | 9 |
-| `DesktopView.test.ts` | 9 |
+| `sessionStore.test.ts` | 19 |
+| `api.test.ts` | 11 |
+| `DesktopView.test.ts` | 12 |
 | `MobileView.test.ts` | 8 |
 | `PINInput.test.ts` | 12 |
 | `QRCodeDisplay.test.ts` | 7 |
