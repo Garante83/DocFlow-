@@ -1,49 +1,40 @@
 # Dokumentenscanner – Projekt-Dokumentation
 
-*Zentrale Dokumentation für Architektur, Entwicklung und Betrieb. Aktualisiert: 2026-07-25*
-
----
-
-## Inhaltsverzeichnis
-
-1. [Überblick](#1-überblick)
-2. [Architektur](#2-architektur)
-3. [Technische Spezifikation](#3-technische-spezifikation)
-4. [Konfigurationsmanagement](#4-konfigurationsmanagement)
-5. [API-Referenz](#5-api-referenz)
-6. [Datenfluss](#6-datenfluss)
-7. [Entwicklung](#7-entwicklung)
-8. [Deployment](#8-deployment)
-9. [Testing](#9-testing)
-10. [Bekannte Bugs & Roadmap](#10-bekannte-bugs--roadmap)
-11. [Metriken](#11-metriken)
-12. [Anhang](#12-anhang)
+*Zentrale Dokumentation für Architektur, Entwicklung und Betrieb. Stand: 2026-07-25*
 
 ---
 
 ## 1. Überblick
 
-### Projektbeschreibung
-Der **Dokumentenscanner** ist eine Web-Anwendung, die den Workflow für das Scannen und Übertragen von Dokumenten zwischen einem **Desktop** (QR-Code-Anzeige) und einem **Mobilgerät** (Kamera + Upload) vereinfacht.
+### Was ist der Dokumentenscanner?
 
-- **Zweck**: Dokumenten-Übertragung ohne direkte Verbindung (z. B. per E-Mail oder Cloud) – ideal für lokale Netzwerke.
-- **Zielgruppe**: Nutzer, die schnell Dokumenten-Scans von einem Mobilgerät auf einen Desktop übertragen möchten (z. B. in Meetings oder Homeoffice).
+Eine Web-Anwendung zum Übertragen von Dokumenten zwischen **Desktop** und **Mobilgerät** über das lokale Netzwerk — ohne Cloud, ohne E-Mail.
 
-### Kernfeatures
 | Feature | Beschreibung |
 |---------|--------------|
 | **Session-Management** | Temporäre Sessions mit 6-stelliger PIN und 1h Timeout |
-| **QR-Code-Generierung** | Automatische Erkennung der LAN-IP für einfache Verbindung |
-| **Multi-Page Upload** | Mehrere Fotos pro Session, Seitenliste mit Löschen, Drehen, Crop |
-| **PDF-Konvertierung** | Server-seitige Generierung einer mehrseitigen PDF mit JPEG-Komprimierung (85%) |
-| **Echtzeit-Kommunikation** | WebSocket-basierte Bestätigung zwischen Desktop und Mobile |
-| **HTTPS** | Selbstsigniertes TLS-Zertifikat (embedded im Binary) |
+| **QR-Code-Verbindung** | Automatische LAN-IP-Erkennung für simple Verbindung |
+| **Multi-Page Upload** | Mehrere Fotos pro Session, bearbeitbar (Drehen, Crop) |
+| **PDF-Konvertierung** | Server-seitige mehrseitige PDF mit JPEG-Komprimierung (85%) |
+| **WebSocket-Kommunikation** | Echtzeit-Bestätigung zwischen Desktop und Mobile |
+| **Burn-after-Reading** | Session wird nach PDF-Download automatisch gelöscht |
+| **HTTPS** | Selbstsigniertes TLS-Zertifikat (im Binary eingebettet) |
+
+### Technologie-Stack
+
+| Schicht | Technologie |
+|---------|-------------|
+| Backend | Go 1.21+ / Gin / gorilla/websocket / go-pdf/fpdf |
+| Frontend | Vue 3 / Vite / Pinia / Axios / Vitest |
+| Konfiguration | Viper (YAML + ENV + CLI Flags) |
+| Logging | log/slog (JSON, stdlib) |
 
 ---
 
 ## 2. Architektur
 
-### Systemarchitektur
+### Systemübersicht
+
 ```mermaid
 graph TD
     subgraph Frontend
@@ -72,82 +63,8 @@ graph TD
     B6 --> B2
 ```
 
-### Verzeichnisstruktur
-```
-NeuDocumentenScaner/
-├── backend/
-│   ├── cmd/server/
-│   │   ├── main.go              # Server-Einstiegspunkt (HTTPS, Graceful Shutdown)
-│   │   ├── cert.pem             # Self-signed TLS-Zertifikat (embedded)
-│   │   ├── key.pem              # TLS-Private Key (embedded)
-│   │   ├── index.html           # Frontend SPA (embedded)
-│   │   └── assets/              # Frontend-Build-Assets (embedded)
-│   │       ├── index-*.js
-│   │       └── index-*.css
-│   ├── internal/
-│   │   ├── config/              # Konfigurationsmanagement (Viper)
-│   │   │   ├── config.go        # Config-Struktur + LoadConfig + Defaults
-│   │   │   └── config_test.go   # Config-Tests (74% Coverage)
-│   │   ├── handlers/            # HTTP-Handler
-│   │   │   ├── deps.go          # Dependency Injection
-│   │   │   ├── session.go       # CreateSession, VerifyPIN, DeleteSession
-│   │   │   ├── qrcode.go        # QR-Code-Generierung (LAN-IP auto-detect)
-│   │   │   ├── upload.go        # Bild-Upload + WebSocket-Broadcast
-│   │   │   ├── pdf.go           # PDF-Generierung + WebSocket-Broadcast
-│   │   │   ├── finalize.go      # Multi-Page Finalize + PDF-Generierung
-│   │   │   └── websocket.go     # WebSocket-Handler + Origin-Check + Message-Forwarding
-│   │   ├── session/             # Session-Management
-│   │   │   ├── session.go       # Session-Struktur + Store (In-Memory)
-│   │   │   ├── pin.go           # PIN-Generierung + Verifizierung
-│   │   │   ├── cleanup.go       # Session-Timeout (1h) + Auto-Cleanup
-│   │   │   ├── session_test.go  # Session-Tests
-│   │   │   └── pin_test.go      # PIN-Tests
-│   │   └── websocket/           # WebSocket-Hub
-│   │       ├── hub.go           # Client-Management + Broadcast
-│   │       └── hub_test.go      # Hub-Tests (94% Coverage)
-│   ├── pkg/utils/               # Utility-Funktionen
-│   │   ├── pdf.go               # PDF-Generierung (gofpdf)
-│   │   └── pdf_test.go          # PDF-Tests
-│   ├── go.mod                   # Go-Modul
-│   ├── go.sum                   # Abhängigkeiten
-│   └── Makefile                 # Build-Skripts
-├── frontend/
-│   └── dokumentenscanner/
-│       ├── index.html           # Laedt Inter-Font (Google Fonts)
-│       ├── src/
-│       │   ├── views/
-│       │   │   ├── DesktopView.vue    # QR-Anzeige + Download-Button
-│       │   │   └── MobileView.vue     # PIN-Eingabe + Upload + Bestätigung
-│       │   ├── components/
-│       │   │   ├── QRCodeDisplay.vue  # QR-Code + PIN-Anzeige
-│       │   │   ├── PINInput.vue       # 6-stellige PIN-Eingabe mit Lock-Feedback
-│       │   │   ├── ImageUpload.vue    # Kamera + Crop + Rotate (Client-seitig)
-│       │   │   └── PDFPreview.vue     # PDF-Vorschau
-│       │   ├── stores/
-│       │   │   └── sessionStore.ts    # Pinia State (Session-ID, Status, Bild)
-│       │   ├── utils/
-│       │   │   ├── api.ts             # Axios-Client für REST-API
-│       │   │   └── websocket.ts       # WebSocket-Client (Message-Handling)
-│       │   ├── router/
-│       │   │   └── index.ts           # Hash-Routing (Desktop/Mobile)
-│       │   ├── assets/
-│       │   │   └── main.css           # CSS Custom Properties (Glassmorphism)
-│       │   ├── __tests__/             # Frontend-Tests (Vitest)
-│       │   │   ├── websocket.test.ts  # WebSocket-Client Tests
-│       │   │   ├── sessionStore.test.ts # Pinia Store Tests
-│       │   │   ├── api.test.ts        # API-Service Tests
-│       │   │   ├── DesktopView.test.ts # Desktop-View Tests
-│       │   │   ├── MobileView.test.ts  # Mobile-View Tests
-│       │   │   ├── PINInput.test.ts    # PIN-Eingabe Tests
-│       │   │   └── QRCodeDisplay.test.ts # QR-Code Tests
-│       │   ├── App.vue
-│       │   └── main.ts
-│       ├── vite.config.ts        # Vite + Vitest Konfiguration
-│       └── package.json
-└── map.md                        # Diese Datei
-```
+### Go-Pakete
 
-### Abhängigkeitsgraph (Go-Pakete)
 ```mermaid
 graph TD
     M[cmd/server/main.go] --> H[internal/handlers]
@@ -163,85 +80,232 @@ graph TD
     H --> GIN[gin-gonic/gin]
 ```
 
+### Verzeichnisstruktur
+
+```
+NeuDocumentenScaner/
+├── backend/
+│   ├── cmd/server/
+│   │   ├── main.go              # Server-Start, Graceful Shutdown, Router
+│   │   ├── cert.pem / key.pem   # TLS (embedded)
+│   │   ├── index.html + assets/ # Frontend SPA (embedded)
+│   │   └── *_test.go
+│   ├── internal/
+│   │   ├── config/              # Viper-Konfiguration
+│   │   │   ├── config.go        # Config-Struct + LoadConfig + Defaults
+│   │   │   └── config_test.go
+│   │   ├── handlers/            # HTTP-Handler
+│   │   │   ├── deps.go          # Dependency Injection
+│   │   │   ├── session.go       # CreateSession, VerifyPIN, DeleteSession
+│   │   │   ├── qrcode.go        # QR-Code (LAN-IP auto-detect)
+│   │   │   ├── upload.go        # Bild-Upload + image_added Event
+│   │   │   ├── finalize.go      # Multi-Page Finalize + PDF-Generierung
+│   │   │   ├── pdf.go           # PDF-Download + Burn-after-Reading
+│   │   │   └── websocket.go     # WebSocket-Handler + Origin-Check
+│   │   ├── session/             # Session-Management
+│   │   │   ├── session.go       # Session-Struktur (Images [][]byte)
+│   │   │   ├── pin.go           # PIN-Generierung + Verifizierung
+│   │   │   └── cleanup.go       # Auto-Cleanup (nach Download oder 1h)
+│   │   └── websocket/           # WebSocket-Hub
+│   │       └── hub.go           # Client-Management + Broadcast
+│   ├── pkg/utils/
+│   │   ├── pdf.go               # GenerateMultiPagePDF + JPEG-Komprimierung
+│   │   └── pdf_test.go
+│   └── Makefile
+├── frontend/
+│   └── dokumentenscanner/
+│       ├── src/
+│       │   ├── views/
+│       │   │   ├── DesktopView.vue    # QR-Anzeige → Download → Complete
+│       │   │   └── MobileView.vue     # PIN → Upload → Finalize → Bestätigung
+│       │   ├── components/
+│       │   │   ├── QRCodeDisplay.vue  # QR-Code + PIN-Anzeige
+│       │   │   ├── PINInput.vue       # 6-stellige PIN mit Lock-Feedback
+│       │   │   └── ImageUpload.vue    # Multi-Page: Kamera/Galerie + Crop/Rotate + Page-Liste
+│       │   ├── stores/sessionStore.ts # Pinia State (images[], maxFileSizeMB, maxPages)
+│       │   ├── utils/
+│       │   │   ├── api.ts             # Axios: REST-API + finalizeUpload
+│       │   │   └── websocket.ts       # WebSocket-Client (image_added, download_request, etc.)
+│       │   ├── __tests__/             # 85 Frontend-Tests (Vitest)
+│       │   └── router/index.ts        # Hash-Routing (Desktop/Mobile)
+│       ├── vite.config.ts             # Vite + Vitest
+│       └── package.json
+└── map.md
+```
+
 ---
 
-## 3. Technische Spezifikation
+## 3. Datenfluss
 
-### Backend
+### Gesamter Workflow
 
-#### Framework & Bibliotheken
-| Komponente | Technologie | Version | Zweck |
-|------------|-------------|---------|-------|
-| Web-Framework | Gin | v1.12.0 | HTTP-Routing |
-| WebSocket | gorilla/websocket | v1.5.3 | Echtzeit-Kommunikation |
-| PDF-Generierung | go-pdf/fpdf | v0.9.0 | PDF-Erstellung aus Bildern |
-| QR-Code | skip2/go-qrcode | – | QR-Code-Generierung |
-| UUID | google/uuid | – | Session-ID-Generierung |
-| Logging | log/slog | stdlib | Strukturiertes Logging |
-| TLS | crypto/tls | stdlib | HTTPS mit self-signed Cert |
+```mermaid
+sequenceDiagram
+    participant D as Desktop
+    participant B as Backend
+    participant M as Mobile
 
-#### Session-Datenstruktur
+    Note over D: 1. Seite aufrufen
+    D->>B: POST /api/session
+    B-->>D: {session_id, pin, max_file_size_mb, max_pages}
+
+    Note over D: 2. QR-Code scannen
+    D->>B: GET /api/session/{id}/qrcode
+    B-->>D: QR-Code PNG
+
+    Note over M: 3. PIN eingeben
+    M->>B: POST /api/session/{id}/verify-pin
+    B-->>M: {valid: true}
+
+    Note over M: 4. Foto(s) machen/auswählen
+    loop Pro Seite
+        M->>B: POST /api/session/{id}/upload
+        B-->>M: {page_count: N}
+        B->>D: WebSocket: image_added
+    end
+
+    Note over M: 5. "Fertig" drücken
+    M->>B: POST /api/session/{id}/finalize
+    B->>B: GenerateMultiPagePDF (JPEG 85% + zlib)
+    B-->>M: {pdf_size, page_count}
+    B->>D: WebSocket: pdf_ready
+
+    Note over D: 6. Download-Button drücken
+    D->>M: WebSocket: download_request
+    M->>M: "Download wird angefordert"
+    M->>D: WebSocket: download_confirmed
+
+    Note over D: 7. PDF herunterladen
+    D->>B: GET /api/session/{id}/pdf
+    B-->>D: PDF-Binary + StatusDownloaded
+    B->>B: Cleanup löscht Session (Burn-after-Reading)
+
+    Note over D: 8. "Vorgang abgeschlossen"
+    D->>D: Neue Sitzung starten
+```
+
+### WebSocket-Nachrichten
+
+| Event | Richtung | Inhalt |
+|-------|----------|--------|
+| `image_added` | Server → Desktop | `{session_id, page_count}` |
+| `pdf_ready` | Server → Desktop | `{session_id, page_count}` |
+| `download_request` | Desktop → Mobile | `{session_id}` |
+| `download_confirmed` | Mobile → Desktop | `{session_id}` |
+
+---
+
+## 4. Backend-Details
+
+### Session-Struktur
+
 ```go
 type Session struct {
     ID             uuid.UUID
-    PIN            string  // 6-stellig, crypto/rand
-    Image          []byte  // Hochgeladenes Bild (JPEG/PNG, < 10MB)
-    PDF            []byte  // Generiertes PDF
+    PIN            string       // 6-stellig, crypto/rand
+    Images         [][]byte     // Mehrere Bilder pro Session
+    PDF            []byte       // Generiertes PDF
     Status         SessionStatus
     CreatedAt      time.Time
-    ExpiresAt      time.Time // 1h nach Erstellung
-    FailedAttempts int      // Max. 3 -> 5 Min. Lock
+    ExpiresAt      time.Time    // 1h nach Erstellung
+    FailedAttempts int
     LockedUntil    time.Time
 }
 
-type SessionStatus string
-
 const (
-    StatusWaitingForPIN SessionStatus = "waiting_for_pin"
-    StatusUploadAllowed SessionStatus = "upload_allowed"
-    StatusUploaded      SessionStatus = "uploaded"
-    StatusReady         SessionStatus = "ready"
-    StatusDownloaded    SessionStatus = "downloaded"
+    StatusWaitingForPIN = "waiting_for_pin"
+    StatusUploadAllowed = "upload_allowed"
+    StatusUploading     = "uploading"
+    StatusUploaded      = "uploaded"
+    StatusReady         = "ready"
+    StatusDownloaded    = "downloaded"  // Trigger für Cleanup
 )
 ```
 
-- **Speicher**: `map[uuid.UUID]*Session` mit `sync.Mutex` für Thread-Safety (In-Memory).
-- **Lebenszyklus**:
-  `Erstellung` -> `PIN-Verifizierung` -> `Upload` -> `PDF-Generierung` -> `Download` -> `Automatisches Löschen` (nach 1h oder Download).
+### PDF-Generierung
 
-#### Sicherheitskonzept
-| Massnahme | Implementierung |
-|----------|-----------------|
-| **PIN-Sicherheit** | 3 Fehlversuche -> 5 Minuten Sperre **pro Session** |
-| **Session-Timeout** | 1 Stunde Inaktivitaet **oder** nach PDF-Download |
-| **HTTPS** | Selbstsigniertes Zertifikat (im Binary eingebettet) |
-| **WebSocket-Auth** | Session-ID im URL-Path (`/ws/session/{id}`) |
-| **Bildgroesse** | Max. 10MB pro Upload |
+`GenerateMultiPagePDF(images [][]byte, quality int)`:
+- Pro Bild: `createImageBitmap` (EXIF-Orientierung) → Canvas → JPEG 85% → `RegisterImageReader`
+- Pro Bild: `pdf.AddPage()` → auf A4 skalieren → zentrieren → `pdf.Image()`
+- fpdf zlib-Komprimierung (Default aktiv)
+- Keine Temp-Files auf der Platte
 
-### Frontend
+### Burn-after-Reading
 
-#### Framework & Bibliotheken
-| Komponente | Technologie | Version | Zweck |
-|------------|-------------|---------|-------|
-| Framework | Vue 3 | – | Reaktives UI |
-| Build-Tool | Vite | – | Modulares Bundling |
-| State-Management | Pinia | – | Zentraler State (Session, Bild) |
-| Routing | vue-router | – | Hash-Mode (Desktop/Mobile) |
-| HTTP-Client | Axios | – | REST-API-Aufrufe |
-| Styling | CSS Custom Properties | – | Glassmorphism-Design |
-| Schriftart | Inter | – | Google Fonts |
+```mermaid
+sequenceDiagram
+    participant D as Desktop
+    participant B as Backend
+    participant C as Cleanup (5min Interval)
 
-#### Bildverarbeitung (Client-seitig)
-- **APIs**: `ImageBitmap`, `createImageBitmap` (für EXIF-Orientierung)
-- **Funktionen**: Kamera-Zugriff, Crop, Rotate
+    D->>B: GET /api/session/{id}/pdf
+    B-->>D: PDF-Binary
+    B->>B: sess.Status = StatusDownloaded
+    B->>B: sess.PDF = nil (Memory frei)
+    C->>C: Prüfe: StatusDownloaded? → Session löschen
+```
+
+### Sicherheit
+
+| Massnahme | Umsetzung |
+|-----------|-----------|
+| PIN-Sperre | 1 Fehlversuch → 5 Min. Sperre |
+| Session-Timeout | 1h Inaktivität |
+| HTTPS | Selbstsigniertes Cert (embedded) |
+| WebSocket-Auth | Session-ID im URL-Path |
+| Origin-Check | Konfigurierbar (`AllowPrivateIPs`) |
 
 ---
 
-## 4. Konfigurationsmanagement
+## 5. Frontend-Details
 
-### Architektur
+### MobileView-Flow
 
-Das Konfigurationssystem nutzt **Viper** mit folgender Prioritätsreihenfolge:
+```mermaid
+stateDiagram-v2
+    [*] --> loading
+    loading --> pin : Session-ID vorhanden
+    loading --> error : Keine Session-ID
+    pin --> upload : PIN verifiziert
+    upload --> upload : Seite hinzugefügt
+    upload --> finalize : "Fertig" geklickt
+    finalize --> confirm_download : PDF bereit
+    confirm_download --> done : Download bestätigt
+```
+
+### DesktopView-Flow
+
+```mermaid
+stateDiagram-v2
+    [*] --> loading
+    loading --> qr_display : Session erstellt
+    qr_display --> waiting_pages : image_added
+    waiting_pages --> waiting_pages : weitere Seiten
+    waiting_pages --> confirm_download : pdf_ready
+    confirm_download --> waiting_confirm : Download angefordert
+    waiting_confirm --> completed : PDF heruntergeladen
+    completed --> loading : Neue Sitzung
+```
+
+### ImageUpload-Komponente
+
+| Modus | Beschreibung |
+|-------|-------------|
+| `choose` | Take Photo / Choose File + Page-Liste + "Generate PDF" Button |
+| `camera` | Kamera-Vorschau + Aufnahme-Button |
+| `edit` | Vorschau + Drehen (90° Schritte) + Crop + "Add Page" / "Update Page" |
+
+- **Thumbnail-Klick** → Edit-Modus für dieses Bild
+- **Upload** → Bild wird durch Canvas normalisiert (EXIF-Strip + Rotation)
+- **Page-Liste** → Thumbnails mit Löschen-Button
+- **MB-Fortschritt** → `X.X MB / Y MB` mit Farbbalken (>80% Warning)
+- **Upload-Limit** → Dynamisch aus Config (`maxFileSizeMB`, `maxPages`)
+
+---
+
+## 6. Konfiguration
+
+### Config-Priorität
 
 ```mermaid
 graph TD
@@ -262,431 +326,140 @@ graph TD
     root[Config] --> server[Server]
     root --> session[Session]
     root --> upload[Upload]
+    root --> pdf[PDF]
     root --> websocket[WebSocket]
     root --> logging[Logging]
     
     server --> port["Port: string"]
     server --> host["Host: string"]
-    server --> tls_cert_path["TLSCertPath: string"]
-    server --> tls_key_path["TLSKeyPath: string"]
-    
     session --> timeout["Timeout: duration"]
-    session --> cleanup_interval["CleanupInterval: duration"]
     session --> max_failed_attempts["MaxFailedAttempts: int"]
-    session --> lockout_duration["LockoutDuration: duration"]
-    
     upload --> max_file_size_mb["MaxFileSizeMB: int"]
     upload --> allowed_types["AllowedTypes: string[]"]
-    
-    websocket --> read_deadline["ReadDeadline: duration"]
-    websocket --> ping_interval["PingInterval: duration"]
-    websocket --> allowed_origins["AllowedOrigins: string[]"]
+    pdf --> max_pages["MaxPages: int"]
+    pdf --> jpeg_quality["JPEGQuality: int"]
     websocket --> allow_private_ips["AllowPrivateIPs: bool"]
-    
     logging --> level["Level: string"]
-    logging --> format["Format: string"]
-```
-
-### Config-Ladevorgang
-
-```mermaid
-sequenceDiagram
-    participant A as main.go
-    participant V as Viper
-    participant F as Config-Datei
-    participant E as Umgebungsvariablen
-    
-    A->>V: LoadConfig(configPath)
-    V->>V: SetConfigName("config")
-    V->>V: SetConfigType("yaml")
-    V->>V: AddConfigPath("./config")
-    V->>V: AutomaticEnv("DSCAN_")
-    V->>F: ReadInConfig()
-    alt Datei existiert
-        F-->>V: Config-Daten
-    else Datei nicht gefunden
-        V->>V: Nutze Defaults
-    end
-    V->>E: bindEnvVars()
-    E-->>V: Überschreibe mit ENV
-    V->>A: Unmarshal in Config-Struct
-    A->>A: validateConfig()
-    A-->>A: Return Config
 ```
 
 ### Config-Dateien
 
-| Datei | Umgebungszweck | Besonderheiten |
-|-------|---------------|---------------|
-| `backend/config/config.yaml` | Standard | Default-Werte für alle Umgebungen |
-| `backend/config/config.dev.yaml` | Entwicklung | Debug-Logging, 24h Session-Timeout, 50MB Upload |
-| `backend/config/config.prod.yaml` | Produktion | Port 443, TLS-Zertifikate, private IPs gesperrt |
-
-### Docker-Konfiguration
-
-Siehe [Deployment](#8-deployment) für Docker-spezifische Einstellungen.
+| Datei | Zweck |
+|-------|-------|
+| `config.yaml` | Standard-Defaults |
+| `config.dev.yaml` | Debug-Logging, 24h Timeout, 50MB Upload |
+| `config.prod.yaml` | Port 443, TLS, private IPs gesperrt |
 
 ---
 
-## 5. API-Referenz
-
-### Basis-URL
-- **Lokal**: `https://<LAN-IP>:8082` (HTTPS mit self-signed Cert)
-- **Beispiel**: `https://192.168.1.100:8082`
+## 7. API-Referenz
 
 ### Endpunkte
 
-#### Session-Management
-| Methode | Endpunkt | Beschreibung | Request-Body | Response-Body | Status |
-|---------|----------|--------------|--------------|----------------|--------|
-| POST | `/api/session` | Session erstellen | – | `{"session_id": "uuid", "pin": "123456"}` | 201 |
-| DELETE | `/api/session/{id}` | Session loeschen | – | – | 204 |
+| Methode | Endpunkt | Beschreibung | Response |
+|---------|----------|--------------|----------|
+| POST | `/api/session` | Session erstellen | `{session_id, pin, max_file_size_mb, max_pages}` |
+| POST | `/api/session/{id}/verify-pin` | PIN prüfen | `{valid, message}` |
+| GET | `/api/session/{id}/qrcode` | QR-Code PNG | PNG-Binary |
+| POST | `/api/session/{id}/upload` | Bild hochladen | `{message, page_count}` |
+| POST | `/api/session/{id}/finalize` | PDF generieren | `{page_count, pdf_size}` |
+| GET | `/api/session/{id}/pdf` | PDF herunterladen | PDF-Binary + Session-Delete |
+| DELETE | `/api/session/{id}` | Session löschen | 204 |
+| GET | `/ws/session/{id}` | WebSocket-Verbindung | JSON-Events |
 
-#### QR-Code & PIN
-| Methode | Endpunkt | Beschreibung | Request-Body | Response-Body | Status |
-|---------|----------|--------------|--------------|----------------|--------|
-| GET | `/api/session/{id}/qrcode` | QR-Code als PNG (enthaelt `session_id` und LAN-IP) | – | PNG-Binary | 200 |
-| POST | `/api/session/{id}/verify-pin` | PIN pruefen | `{"pin": "123456"}` | `{"message": "PIN verified"}` | 200 / 403 |
+### WebSocket-Events
 
-#### Bild-Upload & PDF
-| Methode | Endpunkt | Beschreibung | Request-Body | Response-Body | Status |
-|---------|----------|--------------|--------------|----------------|--------|
-| POST | `/api/session/{id}/upload` | Bild hochladen (JPEG/PNG, < 10MB) | `multipart/form-data` (Field: `image`) | `{"message": "uploaded"}` | 200 / 400 |
-| GET | `/api/session/{id}/pdf` | PDF herunterladen | – | PDF-Binary | 200 / 404 |
-
-#### WebSocket
-| Methode | Endpunkt | Beschreibung | Nachrichtenformat | Status |
-|---------|----------|--------------|-------------------|--------|
-| GET | `/ws/session/{id}` | WebSocket-Verbindung fuer Echtzeit-Kommunikation | JSON (siehe unten) | 101 |
-
-**WebSocket-Nachrichten**:
 ```json
-// Server -> Clients (Broadcast)
-{"event": "image_uploaded", "session_id": "uuid"}
-{"event": "download_request", "session_id": "uuid"}
-{"event": "download_confirmed", "session_id": "uuid"}
+// Server → Desktop (bei jedem Upload)
+{"event": "image_added", "session_id": "uuid", "page_count": 3}
 
-// Clients -> Server
+// Server → Desktop (nach Finalize)
+{"event": "pdf_ready", "session_id": "uuid", "page_count": 3}
+
+// Desktop → Mobile (Download angefordert)
 {"event": "download_request", "data": {"session_id": "uuid"}}
+
+// Mobile → Desktop (Download bestätigt)
 {"event": "download_confirmed", "data": {"session_id": "uuid"}}
 ```
 
 ---
 
-## 6. Datenfluss
-
-### 1. Session-Erstellung + QR-Code
-```mermaid
-sequenceDiagram
-    participant D as Desktop
-    participant B as Backend
-
-    D->>B: POST /api/session
-    B->>B: Create Session + PIN
-    B-->>D: {session_id, pin}
-    D->>B: GET /api/session/{id}/qrcode
-    B->>B: Generate QR (https://LAN:8082/#/mobile?session_id=...)
-    B-->>D: QR-Code PNG
-    D->>D: Display QR + PIN
-```
-
-### 2. Mobile: PIN + Upload
-```mermaid
-sequenceDiagram
-    participant M as Mobile
-    participant B as Backend
-    participant D as Desktop
-
-    M->>M: Scan QR -> /#/mobile?session_id=...
-    M->>B: POST /api/session/{id}/verify-pin {pin}
-    B->>B: Verify PIN
-    alt PIN korrekt
-        B-->>M: {message: "PIN verified"}
-        M->>M: Show Upload UI
-        M->>M: Take Photo / Choose File
-        M->>B: POST /api/session/{id}/upload (FormData)
-        B->>B: Store Image
-        B->>D: WebSocket: image_uploaded
-        B-->>M: {message: "uploaded"}
-        D->>D: Show "Image Received" + Download Button
-    else PIN falsch
-        B-->>M: {error: "Invalid PIN"} (403)
-        M->>M: Show Lock-Feedback (nach 3 Versuchen: 5 Min. Sperre)
-    end
-```
-
-### 3. Download-Bestaetigung via Mobile
-```mermaid
-sequenceDiagram
-    participant D as Desktop
-    participant M as Mobile
-    participant B as Backend
-
-    D->>D: User clicks Download
-    D->>M: WebSocket: download_request
-    M->>M: Show "Download Requested" + Confirm Button
-    M->>M: User clicks Confirm
-    M->>D: WebSocket: download_confirmed
-    D->>B: GET /api/session/{id}/pdf
-    B->>B: Generate PDF (gofpdf)
-    B-->>D: PDF-Binary
-    D->>D: Auto-download PDF via Blob
-    D->>B: DELETE /api/session/{id} (optional)
-```
-
-### 4. WebSocket Message-Forwarding
-```mermaid
-sequenceDiagram
-    participant C1 as Client 1 (Desktop)
-    participant B as Backend (Hub)
-    participant C2 as Client 2 (Mobile)
-
-    C1->>B: WebSocket: {"event": "download_request", ...}
-    B->>B: Broadcast(sessionID, message)
-    B->>C2: WebSocket: {"event": "download_request", ...}
-    Note over B: Alle Clients in derselben Session erhalten die Nachricht
-```
-
----
-
-## 7. Entwicklung
-
-### Voraussetzungen
-| Tool | Version | Zweck |
-|------|---------|-------|
-| Go | >= 1.21 | Backend (fuer `log/slog`) |
-| Node.js | >= 18 | Frontend (Vue 3 + Vite) |
-| npm | >= 9 | Frontend-Dependencies |
-| Git | – | Versionskontrolle |
-
-### Projekt-Setup
-```bash
-# Backend-Dependencies
-cd backend
-make deps          # Go-Module herunterladen
-
-# Frontend-Dependencies
-cd ../frontend/dokumentenscanner
-npm install        # Vue/Pinia/Axios/etc.
-```
+## 8. Entwicklung
 
 ### Build & Run
-| Befehl | Beschreibung |
-|--------|--------------|
-| `make deps` | Go-Module installieren |
-| `make lint` | Code-Formatierung pruefen (`go vet` + `gofmt`) |
-| `make fmt` | Code automatisch formatieren |
-| `make test` | Unit-Tests ausfuehren |
-| `make coverage` | Test-Coverage generieren (HTML-Report) |
-| `make build` | Backend-Binary erstellen (`./server`) |
-| `make run` | Backend starten (HTTPS auf Port 8082) |
-| `make frontend-build` | Frontend bauen + nach `cmd/server/` kopieren |
-| `make all` | `lint` -> `test` -> `build` |
-| `make clean` | Temp-Files, Logs, Binaries bereinigen |
 
-**Manueller Start (ohne Makefile)**:
 ```bash
 # Backend
 cd backend
-go run ./cmd/server
+make lint          # go vet + gofmt
+make test          # Alle Tests
+make build         # Binary erstellen
+make run           # HTTPS auf Port 8082
 
-# Frontend (Dev-Mode mit Hot-Reload)
-cd ../frontend/dokumentenscanner
-npm run dev
+# Frontend
+cd frontend/dokumentenscanner
+npm install        # Dependencies
+npm run dev        # Dev-Server mit Hot-Reload
+
+# Komplett
+cd frontend/dokumentenscanner && npm run build
+cp -r dist/* ../../backend/cmd/server/
+cd ../../backend && go build -o server ./cmd/server
+./server
 ```
 
-### Strukturiertes Logging
-- **Bibliothek**: `log/slog` (stdlib, ab Go 1.21)
-- **Format**: JSON (maschinenlesbar)
-- **Ausgabe**: stdout/stderr (12-Factor-Prinzip, kein File-Logging)
+### Logging
 
-**Log-Levels**:
-| Level | Verwendung | Beispiel |
-|-------|------------|----------|
-| `DEBUG` | WebSocket-Nachrichten, Detail-Infos | `{"level":"DEBUG","msg":"WebSocket message","session_id":"abc-123"}` |
-| `INFO` | Server-Start, Session-Erstellung, Upload | `{"level":"INFO","msg":"Session created","session_id":"abc-123"}` |
-| `WARN` | Fehlgeschlagene PIN-Versuche, Session-Timeout | `{"level":"WARN","msg":"Invalid PIN attempt","session_id":"abc-123","attempt":2}` |
-| `ERROR` | WebSocket-Fehler, PDF-Generierung fehlgeschlagen | `{"level":"ERROR","msg":"PDF generation failed","error":"..."}` |
+`log/slog` mit JSON-Format:
 
-**Implementiertes Logging:**
-- `cmd/server/main.go`: `slog.Info` für Start/Stop
-- `handlers/websocket.go`: `slog.Error` für Upgrade-Fehler, `slog.Warn` für Session-Fehler, `slog.Debug` für Nachrichten
-- `session/cleanup.go`: `slog.Debug` für Cleanup-Infos
-
----
-
-## 8. Deployment
-
-### Lokal (Standard)
-- **Port**: 8082 (konfigurierbar in `cmd/server/main.go`)
-- **HTTPS**: Selbstsigniertes Zertifikat (automatisch generiert bei erstem Start)
-- **Start**:
-  ```bash
-  cd backend
-  make run
-  ```
-- **Zugriff**: `https://localhost:8082` oder `https://<LAN-IP>:8082`
-
-### Reverse-Proxy (optional)
-**Beispiel fuer Caddy** (`Caddyfile`):
-```
-dokumentenscanner.localhost {
-    reverse_proxy localhost:8082
-}
-```
-**Beispiel fuer Nginx**:
-```nginx
-server {
-    listen 443 ssl;
-    server_name dokumentenscanner.localhost;
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-    location / {
-        proxy_pass https://localhost:8082;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-### Umgebungsvariablen (geplant)
-| Variable | Standardwert | Beschreibung |
-|----------|--------------|--------------|
-| `PORT` | `8082` | Server-Port |
-| `SESSION_TIMEOUT` | `1h` | Session-Lebensdauer |
-| `MAX_FAILED_ATTEMPTS` | `3` | PIN-Fehlversuche vor Sperre |
-| `LOCKOUT_DURATION` | `5m` | Sperrdauer nach zu vielen Fehlversuchen |
+| Level | Verwendung |
+|-------|-----------|
+| `DEBUG` | WebSocket-Nachrichten, Cleanup |
+| `INFO` | Server-Start, Session-Erstellung, Upload |
+| `WARN` | PIN-Fehler, Session nicht gefunden |
+| `ERROR` | WebSocket-Fehler, PDF-Generierung fehlgeschlagen |
 
 ---
 
 ## 9. Testing
 
-### Teststruktur
-```mermaid
-graph TD
-    subgraph Backend
-        BT[Backend Tests] --> BS[session/pin_test.go]
-        BT --> BS2[session/session_test.go]
-        BT --> BU[pkg/utils/pdf_test.go]
-        BT --> BH[websocket/hub_test.go]
-        BT --> BC[config/config_test.go]
-        BT --> BI[handlers/integration_test.go]
-    end
-    subgraph Frontend
-        FT[Frontend Tests] --> FW[websocket.test.ts]
-        FT --> FS[sessionStore.test.ts]
-        FT --> FA[api.test.ts]
-        FT --> FD[DesktopView.test.ts]
-        FT --> FM[MobileView.test.ts]
-        FT --> FP[PINInput.test.ts]
-        FT --> FQ[QRCodeDisplay.test.ts]
-    end
-```
-
-### Test-Coverage
-
-**Backend** (`go test -cover`):
+### Coverage
 
 | Paket | Coverage |
 |-------|----------|
+| `internal/websocket` | **93.9%** |
 | `pkg/utils` | 82.5% |
 | `internal/config` | 75.2% |
 | `internal/session` | 68.6% |
 | `internal/handlers` | 71.3% |
-| `internal/websocket` | 93.9% |
 | `cmd/server` | 51.4% |
+| **Frontend (85 Tests)** | Alle grün ✅ |
 
-**Frontend** (`npm run test:unit`):
-
-| Datei | Tests |
-|-------|-------|
-| `websocket.test.ts` | 15 |
-| `sessionStore.test.ts` | 19 |
-| `api.test.ts` | 11 |
-| `DesktopView.test.ts` | 12 |
-| `MobileView.test.ts` | 8 |
-| `PINInput.test.ts` | 12 |
-| `QRCodeDisplay.test.ts` | 7 |
-| **Gesamt Frontend** | **85** |
-| **Gesamt Backend** | **~70** |
-
-### Test ausfuehren
+### Tests ausführen
 
 ```bash
 # Backend
-cd backend
-go test ./... -v
-go test -cover ./...       # Mit Coverage
+cd backend && go test ./... -v && go test -cover ./...
 
 # Frontend
-cd frontend/dokumentenscanner
-npx vitest run             # Alle Tests
-npx vitest run --reporter=verbose  # Detailliert
+cd frontend/dokumentenscanner && npx vitest run
 ```
 
-### Test-Fokus
-- **Backend Unit-Tests**: Session-Management, PIN-Generierung, Config-Validierung, WebSocket-Hub
-- **Backend Integration-Tests**: Kompletter Workflow (Session -> Upload -> PDF -> Download)
-- **Frontend Unit-Tests**: WebSocket-Client, Pinia Store, API-Service
-- **Frontend Component-Tests**: DesktopView, MobileView, PINInput, QRCodeDisplay
-- **Manuelle Tests**: WebSocket-Kommunikation, Mobile/Desktop-Interaktion im LAN
+---
+
+## 10. Bekannte Bugs (alle behoben ✅)
+
+| Bug | Lösung |
+|-----|--------|
+| Cleanup-Goroutine Leak | Session-Store Cleanup in main.go |
+| Mutex-Deadlock | Redesign der Handler-Dependencies |
+| WebSocket Timeouts | Config-basierte Timeouts + Ping/Pong |
+| Origin-Check fehlgeschlagen | parseFlags DefValue-Check (config.go:158) |
+| Doppelte WebSocket-Handler | emitEvent-Aufruf in handleMessage entfernt |
+| DesktopView Handler-Leak | Named Functions + cleanup in onUnmounted |
+| Bild-Ausrichtung verloren | Canvas-Normalisierung bei jedem Upload |
 
 ---
 
-## 10. Bekannte Bugs & Roadmap
-
-
-### Status der Bugfixes
-
-**Aktualisierung 2026-07-25**: Alle zuvor dokumentierten Bugs wurden behoben + neue fixes ✅
-
-| Bug | Status | Lösung |
-|-----|--------|---------|
-| Cleanup-Goroutine Leak | ✅ | Session-Store Cleanup in main.go |
-| Mutex-Deadlock | ✅ | Redesign der Handler-Dependencies |
-| WebSocket Timeouts | ✅ | Config-basierte Timeouts + Ping/Pong |
-| WebSocket Origin-Check fehlgeschlagen | ✅ | parseFlags: `ws-allow-private-ips` DefValue-Check ergaenzt (config.go:158) |
-| Doppelte WebSocket-Handler-Ausfuehrung | ✅ | Redundanter emitEvent-Aufruf in handleMessage entfernt (websocket.ts) |
-| DesktopView Handler-Leak | ✅ | Named Functions + cleanup in onUnmounted (DesktopView.vue) |
-| Config-Test fehlgeschlagen | ✅ | Expected AllowedOrigins mit Protokoll-Prefixen aktualisiert |
-
-### Abgeschlossene Phasen
-
-**Phase 3 (Konfigurationsmanagement)** — alle Aufgaben abgeschlossen ✅
-
-| Aufgabe | Beschreibung | Status |
-|---------|--------------|--------|
-| 3.0 Config-Package | Zentrales Konfigurationsmanagement | ✅ |
-| 3.1 Config in main.go | Integration der Config | ✅ |
-| 3.2 Handler-Deps | Dependency Injection | ✅ |
-| 3.3 Upload-Validierung | Config-basierte Validierung | ✅ |
-| 3.4 Origin-Check | Konfigurierbare Origin-Validierung | ✅ |
-| 3.5 Config-Dateien | Dev/Prod Config-Templates | ✅ |
-| 3.6 Makefile Config | Docker-Build-Ziele | ✅ |
-| 3.7 Config-Tests | Unit-Tests für Config | ✅ |
-| 3.8 Docker | Containerisierung | ✅ |
-| 3.9 Dokumentation | Config-Referenz in Doku | ✅ |
-
-**Phase 4 (Infrastruktur)** — alle Aufgaben abgeschlossen ✅
-
-| Aufgabe | Beschreibung | Status |
-|---------|--------------|--------|
-| 4.1 Graceful Shutdown | http.Server + SIGINT/SIGTERM + 10s Timeout | ✅ |
-| 4.2 Strukturiertes Logging | 0x log.Printf, komplett auf slog umgestellt | ✅ |
-| 4.3 Makefile final | lint, fmt, all Targets | ✅ |
-
-**Phase 5 (Testing)** — alle Aufgaben abgeschlossen ✅
-
-| Aufgabe | Beschreibung | Status |
-|---------|--------------|--------|
-| 5.0 WebSocket-Hub Tests | Register, Unregister, Broadcast (93.9% Coverage) | ✅ |
-| 5.1 WebSocket-Handler Tests | isPrivateIP, parseOrigin, createOriginChecker | ✅ |
-| 5.2 QRCode-Handler Tests | getFrontendURL, getDefaultPort, getLocalIP | ✅ |
-| 5.3 Main/Server Tests | getPort, readEmbeddedFile, setupLogger, writeTempFile | ✅ |
-| 5.4 Upload-Handler Tests | 6 Tests: Success, InvalidSession, NotAllowed, InvalidFile, FileExceedsLimit, MissingFormField | ✅ |
-| 5.5 Integrationstests | Full Workflow, QR-Code, PIN-Lockout, Concurrent Sessions, WebSocket Broadcast | ✅ |
-| 5.6 Config-Tests | bindEnvVars, parseFlags | ✅ |
-
----
-
-*Letzte Aktualisierung: 2026-07-25. Für den detaillierten Projektplan siehe [plan.md](plan.md).*
+*Stand: 2026-07-25. Siehe auch [plan.md](plan.md) für den detaillierten Projektplan.*
