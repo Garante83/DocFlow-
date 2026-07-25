@@ -539,7 +539,7 @@ Kritische Lucken in: cmd/server, websocket, handlers/qrcode, handlers/websocket
 | 5.2 | Handler QRCode Tests | ⬜ | Hoch | 1h | 3.0 |
 | 5.3 | Main/Server Tests | ⬜ | Hoch | 1h | 3.1 |
 | 5.4 | Upload Tests erweiteren | ⬜ | Mittel | 1h | 3.3 |
-| 5.5 | Integrationstests erweiteren | ⬜ | Mittel | 2h | 3.2, 3.4 |
+| 5.5 | Integrationstests erweiteren | ✅ | Mittel | 2h | 3.2, 3.4 |
 | 5.6 | Config-Tests erweiteren | ⬜ | Mittel | 1h | 3.0 |
 
 ---
