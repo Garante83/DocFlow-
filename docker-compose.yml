@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  dokumentenscanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dokumentenscanner
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    volumes:
+      # Mount config directory - allows runtime configuration without rebuild
+      - ./config:/app/config:ro
+    environment:
+      # Server configuration
+      - DSCAN_SERVER_PORT=8082
+      - DSCAN_SERVER_HOST=0.0.0.0
+      
+      # Session configuration
+      - DSCAN_SESSION_TIMEOUT=1h
+      - DSCAN_SESSION_CLEANUP_INTERVAL=5m
+      - DSCAN_SESSION_MAX_FAILED_ATTEMPTS=3
+      - DSCAN_SESSION_LOCKOUT_DURATION=5m
+      
+      # Upload configuration
+      - DSCAN_UPLOAD_MAX_FILE_SIZE_MB=10
+      - DSCAN_UPLOAD_ALLOWED_TYPES=image/jpeg,image/png,image/webp
+      
+      # WebSocket configuration
+      - DSCAN_WEB_SOCKET_READ_DEADLINE=60s
+      - DSCAN_WEB_SOCKET_PING_INTERVAL=30s
+      - DSCAN_WEB_SOCKET_ALLOWED_ORIGINS=localhost:8082,127.0.0.1:8082
+      - DSCAN_WEB_SOCKET_ALLOW_PRIVATE_IPS=true
+      
+      # Logging configuration
+      - DSCAN_LOGGING_LEVEL=info
+      - DSCAN_LOGGING_FORMAT=json
+    networks:
+      - dokumentenscanner-net
+
+networks:
+  dokumentenscanner-net:
+    driver: bridge

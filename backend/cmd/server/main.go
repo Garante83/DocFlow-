@@ -3,10 +3,11 @@ package main
 import (
 	"embed"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 
+	"dokumentenscanner/internal/config"
 	"dokumentenscanner/internal/handlers"
 	"dokumentenscanner/internal/session"
 	"dokumentenscanner/internal/websocket"
@@ -16,39 +17,49 @@ import (
 //go:embed *
 var frontendFS embed.FS
 
-const (
-	DefaultServerPort = ":8082"
-)
-
-func getPort() string {
-	if port := os.Getenv("PORT"); port != "" {
-		return ":" + port
-	}
-	return DefaultServerPort
+// Port wird jetzt aus der Config geladen, Default falls nicht gesetzt
+func getPort(cfg *config.Config) string {
+	return ":" + cfg.Server.Port
 }
 
 func readEmbeddedFile(name string) []byte {
 	f, err := frontendFS.Open(name)
 	if err != nil {
-		log.Fatal("Failed to read embedded file:", name, err)
+		slog.Error("Failed to read embedded file", "file", name, "error", err)
+		os.Exit(1)
 	}
 	defer f.Close()
 	data, err := io.ReadAll(f)
 	if err != nil {
-		log.Fatal("Failed to read embedded file:", name, err)
+		slog.Error("Failed to read embedded file", "file", name, "error", err)
+		os.Exit(1)
 	}
 	return data
 }
 
 func main() {
-	sessionStore := session.NewStore()
-	handlers.SessionStore = sessionStore
-	go sessionStore.StartCleanup(0)
+	// 1. Konfiguration laden
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		slog.Error("Failed to load config", "error", err)
+		os.Exit(1)
+	}
 
+	// 2. Logger einrichten
+	setupLogger(cfg)
+
+	// 3. Session-Store mit Config-Werten initialisieren
+	sessionStore := session.NewStore()
+	go sessionStore.StartCleanup(cfg.Session.CleanupInterval)
+
+	// 4. WebSocket-Hub initialisieren
 	hub := websocket.NewHub()
-	handlers.WebSocketHub = hub
 	go hub.Run()
 
+	// 5. Handler mit Abhaengigkeiten initialisieren
+	handlers.Init(sessionStore, hub, cfg)
+
+	// 6. Router einrichten
 	r := gin.Default()
 
 	api := r.Group("/api")
@@ -130,21 +141,44 @@ func main() {
 	defer os.Remove(certFile)
 	defer os.Remove(keyFile)
 
-	port := getPort()
-	log.Printf("Server started on https://0.0.0.0%s", port)
-	log.Printf("Frontend available at https://localhost%s", port)
+	port := getPort(cfg)
+	slog.Info("Server starting", "addr", "0.0.0.0"+port, "port", cfg.Server.Port)
+	slog.Info("Frontend available at https://localhost" + port)
 	if err := r.RunTLS(port, certFile, keyFile); err != nil {
-		log.Fatal("Failed to start server:", err)
+		slog.Error("Server failed", "error", err)
+		os.Exit(1)
 	}
+}
+
+// setupLogger richtet den strukturierten Logger basierend auf der Config ein
+func setupLogger(cfg *config.Config) {
+	level := slog.LevelInfo
+	switch cfg.Logging.Level {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	}
+
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: level,
+	})
+
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
 }
 
 func writeTempFile(name string, data []byte) string {
 	f, err := os.CreateTemp("", name+"-*.pem")
 	if err != nil {
-		log.Fatal("Failed to create temp file:", err)
+		slog.Error("Failed to create temp file", "file", name, "error", err)
+		os.Exit(1)
 	}
 	if _, err := f.Write(data); err != nil {
-		log.Fatal("Failed to write temp file:", err)
+		slog.Error("Failed to write temp file", "file", name, "error", err)
+		os.Exit(1)
 	}
 	f.Close()
 	return f.Name()

@@ -1,0 +1,33 @@
+# Dokumentenscanner - Standard Konfiguration
+# Diese Datei enthält die Default-Werte für alle Umgebungen
+
+server:
+  port: "8082"
+  host: "0.0.0.0"
+  tls_cert_path: ""
+  tls_key_path: ""
+
+session:
+  timeout: 1h
+  cleanup_interval: 5m
+  max_failed_attempts: 3
+  lockout_duration: 5m
+
+upload:
+  max_file_size_mb: 10
+  allowed_types:
+    - "image/jpeg"
+    - "image/png"
+    - "image/webp"
+
+websocket:
+  read_deadline: 60s
+  ping_interval: 30s
+  allowed_origins:
+    - "localhost:8082"
+    - "127.0.0.1:8082"
+  allow_private_ips: true
+
+logging:
+  level: "info"
+  format: "json"

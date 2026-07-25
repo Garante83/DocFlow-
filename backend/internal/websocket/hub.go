@@ -14,6 +14,7 @@ type Hub struct {
 	unregister chan *Client
 	broadcast  chan *Message
 	mu         sync.Mutex
+	stopChan   chan struct{}
 }
 
 // Client represents a WebSocket client.
@@ -36,6 +37,7 @@ func NewHub() *Hub {
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		broadcast:  make(chan *Message),
+		stopChan:   make(chan struct{}),
 	}
 }
 
@@ -43,6 +45,8 @@ func NewHub() *Hub {
 func (h *Hub) Run() {
 	for {
 		select {
+		case <-h.stopChan:
+			return
 		case client := <-h.register:
 			h.registerClient(client)
 		case client := <-h.unregister:
@@ -112,4 +116,9 @@ func (h *Hub) Register(client *Client) {
 // Unregister unregisters a client from the hub.
 func (h *Hub) Unregister(client *Client) {
 	h.unregister <- client
+}
+
+// Stop stops the hub's main loop.
+func (h *Hub) Stop() {
+	close(h.stopChan)
 }

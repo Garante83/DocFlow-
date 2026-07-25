@@ -1,0 +1,38 @@
+# Dokumentenscanner - Entwicklungskonfiguration
+# Erbt von config.default.yaml und überschreibt Entwicklungsspezifische Werte
+
+server:
+  port: "8082"
+  host: "0.0.0.0"
+  tls_cert_path: ""
+  tls_key_path: ""
+
+session:
+  timeout: 24h
+  cleanup_interval: 10m
+  max_failed_attempts: 3
+  lockout_duration: 1m
+
+upload:
+  max_file_size_mb: 50
+  allowed_types:
+    - "image/jpeg"
+    - "image/png"
+    - "image/webp"
+    - "image/gif"
+
+websocket:
+  read_deadline: 120s
+  ping_interval: 60s
+  allowed_origins:
+    - "localhost:8082"
+    - "127.0.0.1:8082"
+    - "localhost:3000"
+    - "127.0.0.1:3000"
+    - "0.0.0.0:8082"
+    - "0.0.0.0:3000"
+  allow_private_ips: true
+
+logging:
+  level: "debug"
+  format: "text"

@@ -1,0 +1,31 @@
+# Dokumentenscanner - Produktionskonfiguration
+# Erbt von config.default.yaml und überschreibt Produktions-spezifische Werte
+
+server:
+  port: "443"
+  host: "0.0.0.0"
+  tls_cert_path: "/etc/letsencrypt/live/dokumentenscanner/fullchain.pem"
+  tls_key_path: "/etc/letsencrypt/live/dokumentenscanner/privkey.pem"
+
+session:
+  timeout: 1h
+  cleanup_interval: 5m
+  max_failed_attempts: 3
+  lockout_duration: 15m
+
+upload:
+  max_file_size_mb: 10
+  allowed_types:
+    - "image/jpeg"
+    - "image/png"
+
+websocket:
+  read_deadline: 30s
+  ping_interval: 15s
+  allowed_origins:
+    - "https://dokumentenscanner.example.com"
+  allow_private_ips: false
+
+logging:
+  level: "info"
+  format: "json"

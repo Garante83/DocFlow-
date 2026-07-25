@@ -8,12 +8,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// SessionStore is a global session store instance.
-var SessionStore = session.NewStore()
-
 // CreateSessionHandler handles the creation of a new session.
 func CreateSessionHandler(c *gin.Context) {
-	sess, err := SessionStore.Create()
+	deps := getDeps()
+	sess, err := deps.SessionStore.Create()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -22,7 +20,7 @@ func CreateSessionHandler(c *gin.Context) {
 	// Generate a PIN for the session
 	pin := session.GeneratePIN()
 	sess.PIN = pin
-	SessionStore.Update(sess)
+	deps.SessionStore.Update(sess)
 
 	c.JSON(http.StatusOK, gin.H{
 		"session_id": sess.ID,
@@ -32,6 +30,7 @@ func CreateSessionHandler(c *gin.Context) {
 
 // VerifyPINHandler handles the verification of a PIN for a session.
 func VerifyPINHandler(c *gin.Context) {
+	deps := getDeps()
 	sessionIDStr := c.Param("id")
 	sessionID, err := uuid.Parse(sessionIDStr)
 	if err != nil {
@@ -48,7 +47,7 @@ func VerifyPINHandler(c *gin.Context) {
 		return
 	}
 
-	err = session.VerifyPIN(SessionStore, sessionID, request.PIN)
+	err = session.VerifyPIN(deps.SessionStore, sessionID, request.PIN)
 	if err != nil {
 		if err == session.ErrPINLocked {
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})
@@ -65,6 +64,7 @@ func VerifyPINHandler(c *gin.Context) {
 
 // DeleteSessionHandler handles the deletion of a session.
 func DeleteSessionHandler(c *gin.Context) {
+	deps := getDeps()
 	sessionIDStr := c.Param("id")
 	sessionID, err := uuid.Parse(sessionIDStr)
 	if err != nil {
@@ -72,6 +72,6 @@ func DeleteSessionHandler(c *gin.Context) {
 		return
 	}
 
-	SessionStore.Delete(sessionID)
+	deps.SessionStore.Delete(sessionID)
 	c.Status(http.StatusNoContent)
 }

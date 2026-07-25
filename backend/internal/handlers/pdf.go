@@ -18,6 +18,7 @@ const (
 
 // PDFHandler generates and returns a PDF for a session.
 func PDFHandler(c *gin.Context) {
+	deps := getDeps()
 	sessionIDStr := c.Param("id")
 	sessionID, err := uuid.Parse(sessionIDStr)
 	if err != nil {
@@ -26,7 +27,7 @@ func PDFHandler(c *gin.Context) {
 	}
 
 	// Check if the session exists
-	sess, exists := SessionStore.Get(sessionID)
+	sess, exists := deps.SessionStore.Get(sessionID)
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 		return
@@ -48,11 +49,11 @@ func PDFHandler(c *gin.Context) {
 	// Store the PDF in the session
 	sess.PDF = pdfBytes
 	sess.Status = session.StatusReady
-	SessionStore.Update(sess)
+	deps.SessionStore.Update(sess)
 
 	// Broadcast pdf_ready event to desktop clients
 	message := fmt.Sprintf(`{"event":"pdf_ready","session_id":"%s"}`, sessionID)
-	WebSocketHub.Broadcast(sessionID, []byte(message))
+	deps.WebSocketHub.Broadcast(sessionID, []byte(message))
 
 	// Return the PDF
 	c.Header("Content-Type", "application/pdf")

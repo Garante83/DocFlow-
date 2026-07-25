@@ -50,6 +50,7 @@ func getLocalIP() string {
 
 // QRCodeHandler generates a QR code for a session.
 func QRCodeHandler(c *gin.Context) {
+	deps := getDeps()
 	sessionIDStr := c.Param("id")
 	sessionID, err := uuid.Parse(sessionIDStr)
 	if err != nil {
@@ -58,7 +59,7 @@ func QRCodeHandler(c *gin.Context) {
 	}
 
 	// Check if the session exists
-	_, exists := SessionStore.Get(sessionID)
+	_, exists := deps.SessionStore.Get(sessionID)
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 		return

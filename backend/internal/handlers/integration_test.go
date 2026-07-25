@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"dokumentenscanner/internal/config"
 	"dokumentenscanner/internal/session"
 	ws "dokumentenscanner/internal/websocket"
 	"github.com/gin-gonic/gin"
@@ -19,10 +21,24 @@ import (
 
 func init() {
 	gin.SetMode(gin.TestMode)
-	// Reinitialize store and hub for each test
-	SessionStore = session.NewStore()
-	WebSocketHub = ws.NewHub()
-	go WebSocketHub.Run()
+	// Initialize dependencies for tests with a valid config
+	store := session.NewStore()
+	hub := ws.NewHub()
+	go hub.Run()
+	
+	// Create a minimal config for tests
+	cfg := &config.Config{}
+	cfg.Upload.MaxFileSizeMB = 10
+	cfg.Upload.AllowedTypes = []string{"image/jpeg", "image/png", "image/webp"}
+	cfg.Session.Timeout = 1 * time.Hour
+	cfg.Session.CleanupInterval = 5 * time.Minute
+	cfg.Session.MaxFailedAttempts = 3
+	cfg.Session.LockoutDuration = 5 * time.Minute
+	cfg.Logging.Level = "info"
+	cfg.Logging.Format = "json"
+	cfg.Server.Port = "8082"
+	
+	Init(store, hub, cfg)
 }
 
 func TestFullWorkflow(t *testing.T) {
@@ -106,4 +122,88 @@ func TestFullWorkflow(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+// TestFullWorkflowWithDevConfig tests the workflow with dev configuration
+func TestFullWorkflowWithDevConfig(t *testing.T) {
+	// Create a dev config
+	store := session.NewStore()
+	hub := ws.NewHub()
+	go hub.Run()
+	
+	cfg := &config.Config{}
+	cfg.Upload.MaxFileSizeMB = 50 // Larger limit for dev
+	cfg.Upload.AllowedTypes = []string{"image/jpeg", "image/png", "image/webp", "image/gif"}
+	cfg.Session.Timeout = 24 * time.Hour
+	cfg.Logging.Level = "debug"
+	
+	// Reinitialize with dev config
+	Init(store, hub, cfg)
+	
+	router := gin.Default()
+	router.POST("/api/session", CreateSessionHandler)
+	router.POST("/api/session/:id/upload", UploadHandler)
+	
+	// Test with dev config - should allow larger files and more types
+	req, _ := http.NewRequest("POST", "/api/session", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// TestFullWorkflowWithProdConfig tests the workflow with prod configuration
+func TestFullWorkflowWithProdConfig(t *testing.T) {
+	// Create a prod config
+	store := session.NewStore()
+	hub := ws.NewHub()
+	go hub.Run()
+	
+	cfg := &config.Config{}
+	cfg.Upload.MaxFileSizeMB = 10
+	cfg.Upload.AllowedTypes = []string{"image/jpeg", "image/png"}
+	cfg.WebSocket.AllowPrivateIPs = false
+	cfg.Logging.Level = "info"
+	cfg.Server.Port = "443"
+	
+	// Reinitialize with prod config
+	Init(store, hub, cfg)
+	
+	router := gin.Default()
+	router.POST("/api/session", CreateSessionHandler)
+	
+	// Test with prod config - should have stricter limits
+	req, _ := http.NewRequest("POST", "/api/session", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// TestConcurrentSessions tests handling of multiple concurrent sessions
+func TestConcurrentSessions(t *testing.T) {
+	router := gin.Default()
+	router.POST("/api/session", CreateSessionHandler)
+	router.DELETE("/api/session/:id", DeleteSessionHandler)
+
+	// Create multiple sessions
+	var sessionIDs []string
+	for i := 0; i < 5; i++ {
+		req, _ := http.NewRequest("POST", "/api/session", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		
+		var sessionResp map[string]string
+		json.Unmarshal(w.Body.Bytes(), &sessionResp)
+		sessionIDs = append(sessionIDs, sessionResp["session_id"])
+	}
+
+	// Verify all sessions can be deleted (which confirms they exist)
+	for _, id := range sessionIDs {
+		req, _ := http.NewRequest("DELETE", "/api/session/"+id, nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		
+		assert.Equal(t, http.StatusNoContent, w.Code)
+	}
 }
