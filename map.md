@@ -591,7 +591,7 @@ graph TD
 | `pkg/utils` | 82.4% |
 | `internal/config` | 74.5% |
 | `internal/session` | 70.0% |
-| `internal/handlers` | 68.0% |
+| `internal/handlers` | 71.3% |
 | `internal/websocket` | 93.9% |
 | `cmd/server` | 50.9% |
 
@@ -606,8 +606,8 @@ graph TD
 | `MobileView.test.ts` | 8 |
 | `PINInput.test.ts` | 12 |
 | `QRCodeDisplay.test.ts` | 7 |
-| **Gesamt Frontend** | **76** |
-| **Gesamt Backend** | **~60** |
+| **Gesamt Frontend** | **85** |
+| **Gesamt Backend** | **~70** |
 
 ### Test ausfuehren
 
