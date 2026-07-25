@@ -21,11 +21,16 @@ func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-func setupTestRouter() *gin.Engine {
+func setupTestRouter(t testing.TB) *gin.Engine {
 	// Initialize dependencies for qrcode tests
 	store := session.NewStore()
 	hub := ws.NewHub()
 	go hub.Run()
+	
+	// Ensure hub is stopped after test completes
+	t.Cleanup(func() {
+		hub.Stop()
+	})
 
 	cfg := config.DefaultConfig()
 	Init(store, hub, cfg)
@@ -101,7 +106,7 @@ func TestGetLocalIP(t *testing.T) {
 
 // TestQRCodeHandler tests the QRCodeHandler
 func TestQRCodeHandler(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(t)
 
 	// Create a session first using the router's store
 	req, _ := http.NewRequest("POST", "/api/session", nil)
@@ -128,7 +133,7 @@ func TestQRCodeHandler(t *testing.T) {
 
 // TestQRCodeHandlerInvalidSession tests QRCodeHandler with invalid session
 func TestQRCodeHandlerInvalidSession(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(t)
 
 	// Test with non-existent session ID
 	req := httptest.NewRequest("GET", "/api/session/"+uuid.New().String()+"/qrcode", nil)
@@ -140,7 +145,7 @@ func TestQRCodeHandlerInvalidSession(t *testing.T) {
 
 // TestQRCodeHandlerInvalidID tests QRCodeHandler with invalid UUID
 func TestQRCodeHandlerInvalidID(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouter(t)
 
 	// Test with invalid UUID format
 	req := httptest.NewRequest("GET", "/api/session/invalid-uuid/qrcode", nil)

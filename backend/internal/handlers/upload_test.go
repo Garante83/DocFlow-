@@ -26,11 +26,16 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func setupUploadTestRouter() *gin.Engine {
+func setupUploadTestRouter(t testing.TB) *gin.Engine {
 	// Initialize dependencies
 	store := session.NewStore()
 	hub := ws.NewHub()
 	go hub.Run()
+	
+	// Ensure hub is stopped after test completes
+	t.Cleanup(func() {
+		hub.Stop()
+	})
 
 	cfg := &config.Config{}
 	cfg.Upload.MaxFileSizeMB = 1 // Set to 1MB for testing
@@ -62,7 +67,7 @@ func fillImageWithRandomNoise(img *image.RGBA) {
 
 // TestUploadHandlerSuccess tests successful image upload
 func TestUploadHandlerSuccess(t *testing.T) {
-	router := setupUploadTestRouter()
+	router := setupUploadTestRouter(t)
 
 	// Create a session first
 	req, _ := http.NewRequest("POST", "/api/session", nil)
@@ -117,7 +122,7 @@ func TestUploadHandlerSuccess(t *testing.T) {
 
 // TestUploadHandlerInvalidSession tests upload with non-existent session
 func TestUploadHandlerInvalidSession(t *testing.T) {
-	router := setupUploadTestRouter()
+	router := setupUploadTestRouter(t)
 
 	// Try to upload to non-existent session
 	img := image.NewGray(image.Rect(0, 0, 10, 10))
@@ -140,7 +145,7 @@ func TestUploadHandlerInvalidSession(t *testing.T) {
 
 // TestUploadHandlerNotAllowed tests upload when session not allowed
 func TestUploadHandlerNotAllowed(t *testing.T) {
-	router := setupUploadTestRouter()
+	router := setupUploadTestRouter(t)
 
 	// Create a session but don't verify PIN (session is not in upload_allowed state)
 	req, _ := http.NewRequest("POST", "/api/session", nil)
@@ -174,7 +179,7 @@ func TestUploadHandlerNotAllowed(t *testing.T) {
 
 // TestUploadHandlerInvalidFile tests upload with invalid file
 func TestUploadHandlerInvalidFile(t *testing.T) {
-	router := setupUploadTestRouter()
+	router := setupUploadTestRouter(t)
 
 	// Create and verify session
 	req, _ := http.NewRequest("POST", "/api/session", nil)
@@ -212,7 +217,7 @@ func TestUploadHandlerInvalidFile(t *testing.T) {
 
 // TestUploadHandlerFileExceedsLimit tests upload with file exceeding size limit
 func TestUploadHandlerFileExceedsLimit(t *testing.T) {
-	router := setupUploadTestRouter()
+	router := setupUploadTestRouter(t)
 
 	// Create and verify session
 	req, _ := http.NewRequest("POST", "/api/session", nil)
@@ -265,7 +270,7 @@ func TestUploadHandlerFileExceedsLimit(t *testing.T) {
 
 // TestUploadHandlerMissingFormField tests upload with missing image field
 func TestUploadHandlerMissingFormField(t *testing.T) {
-	router := setupUploadTestRouter()
+	router := setupUploadTestRouter(t)
 
 	// Create and verify session
 	req, _ := http.NewRequest("POST", "/api/session", nil)

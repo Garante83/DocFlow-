@@ -21,11 +21,19 @@ import (
 
 func init() {
 	gin.SetMode(gin.TestMode)
+}
+
+func setupIntegrationRouter(t testing.TB) *gin.Engine {
 	// Initialize dependencies for tests with a valid config
 	store := session.NewStore()
 	hub := ws.NewHub()
 	go hub.Run()
 	
+	// Ensure hub is stopped after test completes
+	t.Cleanup(func() {
+		hub.Stop()
+	})
+
 	// Create a minimal config for tests
 	cfg := &config.Config{}
 	cfg.Upload.MaxFileSizeMB = 10
@@ -37,12 +45,15 @@ func init() {
 	cfg.Logging.Level = "info"
 	cfg.Logging.Format = "json"
 	cfg.Server.Port = "8082"
-	
+
 	Init(store, hub, cfg)
+
+	router := gin.Default()
+	return router
 }
 
 func TestFullWorkflow(t *testing.T) {
-	router := gin.Default()
+	router := setupIntegrationRouter(t)
 	router.POST("/api/session", CreateSessionHandler)
 	router.POST("/api/session/:id/verify-pin", VerifyPINHandler)
 	router.POST("/api/session/:id/upload", UploadHandler)
@@ -131,24 +142,29 @@ func TestFullWorkflowWithDevConfig(t *testing.T) {
 	hub := ws.NewHub()
 	go hub.Run()
 	
+	// Ensure hub is stopped after test completes
+	t.Cleanup(func() {
+		hub.Stop()
+	})
+
 	cfg := &config.Config{}
 	cfg.Upload.MaxFileSizeMB = 50 // Larger limit for dev
 	cfg.Upload.AllowedTypes = []string{"image/jpeg", "image/png", "image/webp", "image/gif"}
 	cfg.Session.Timeout = 24 * time.Hour
 	cfg.Logging.Level = "debug"
-	
-	// Reinitialize with dev config
+
+	// Initialize with dev config
 	Init(store, hub, cfg)
-	
+
 	router := gin.Default()
 	router.POST("/api/session", CreateSessionHandler)
 	router.POST("/api/session/:id/upload", UploadHandler)
-	
+
 	// Test with dev config - should allow larger files and more types
 	req, _ := http.NewRequest("POST", "/api/session", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	
+
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
@@ -159,24 +175,29 @@ func TestFullWorkflowWithProdConfig(t *testing.T) {
 	hub := ws.NewHub()
 	go hub.Run()
 	
+	// Ensure hub is stopped after test completes
+	t.Cleanup(func() {
+		hub.Stop()
+	})
+
 	cfg := &config.Config{}
 	cfg.Upload.MaxFileSizeMB = 10
 	cfg.Upload.AllowedTypes = []string{"image/jpeg", "image/png"}
 	cfg.WebSocket.AllowPrivateIPs = false
 	cfg.Logging.Level = "info"
 	cfg.Server.Port = "443"
-	
-	// Reinitialize with prod config
+
+	// Initialize with prod config
 	Init(store, hub, cfg)
-	
+
 	router := gin.Default()
 	router.POST("/api/session", CreateSessionHandler)
-	
+
 	// Test with prod config - should have stricter limits
 	req, _ := http.NewRequest("POST", "/api/session", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	
+
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
