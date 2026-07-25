@@ -72,4 +72,9 @@ func PDFHandler(c *gin.Context) {
 	c.Header("Content-Length", fmt.Sprintf("%d", len(pdfBytes)))
 	c.Status(http.StatusOK)
 	_, _ = c.Writer.Write(pdfBytes)
+
+	// Mark session as downloaded — cleanup goroutine will delete it
+	sess.Status = session.StatusDownloaded
+	sess.PDF = nil // Free memory
+	deps.SessionStore.Update(sess)
 }

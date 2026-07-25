@@ -48,6 +48,16 @@ const pageThumbs = computed(() => {
   return sessionStore.images.map((file) => URL.createObjectURL(file))
 })
 
+// Compute total upload size in MB
+const totalUploadMB = computed(() => {
+  const bytes = sessionStore.images.reduce((sum, file) => sum + file.size, 0)
+  return (bytes / (1024 * 1024)).toFixed(1)
+})
+
+const uploadPercent = computed(() => {
+  return Math.min(100, Math.round((parseFloat(totalUploadMB.value) / sessionStore.maxFileSizeMB) * 100))
+})
+
 async function loadImageBitmap(file: File): Promise<ImageBitmap> {
   return createImageBitmap(file, { orientation: 'from-image' })
 }
@@ -496,7 +506,10 @@ onUnmounted(() => {
         <h2>Upload Document</h2>
         <p class="info" v-if="sessionStore.imageCount === 0">Take a photo or select images</p>
         <p class="info" v-else>{{ sessionStore.imageCount }} {{ sessionStore.imageCount === 1 ? 'page' : 'pages' }} added</p>
-        <p class="limit-info">Max. {{ sessionStore.maxFileSizeMB }}MB per image · Max. {{ sessionStore.maxPages }} pages</p>
+        <div v-if="sessionStore.imageCount > 0" class="usage-bar">
+          <div class="usage-fill" :style="{ width: uploadPercent + '%' }" :class="{ 'usage-warning': uploadPercent > 80 }"></div>
+        </div>
+        <p class="limit-info">{{ totalUploadMB }}MB / {{ sessionStore.maxFileSizeMB }}MB · {{ sessionStore.imageCount }}/{{ sessionStore.maxPages }} pages</p>
       </div>
 
       <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
@@ -676,6 +689,9 @@ onUnmounted(() => {
 .header h2 { font-size: 1.4rem; font-weight: 700; color: var(--color-text); margin-bottom: 4px; }
 .info { color: var(--color-text-secondary); font-size: 0.9rem; }
 .limit-info { color: var(--color-text-muted); font-size: 0.75rem; font-weight: 500; }
+.usage-bar { width: 100%; height: 6px; background: var(--color-border); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.usage-fill { height: 100%; background: var(--color-primary); border-radius: 3px; transition: width 0.3s ease; }
+.usage-fill.usage-warning { background: var(--color-warning); }
 .file-input { display: none; }
 
 /* PAGE LIST */

@@ -7,7 +7,7 @@ import QRCodeDisplay from '../components/QRCodeDisplay.vue'
 
 const sessionStore = useSessionStore()
 
-type ViewState = 'loading' | 'error' | 'qr_display' | 'waiting_pages' | 'confirm_download' | 'waiting_confirm'
+type ViewState = 'loading' | 'error' | 'qr_display' | 'waiting_pages' | 'confirm_download' | 'waiting_confirm' | 'completed'
 const currentView = ref<ViewState>('loading')
 const errorMessage = ref<string | null>(null)
 const pageCount = ref(0)
@@ -85,11 +85,18 @@ async function downloadPDF() {
     a.click()
     window.URL.revokeObjectURL(url)
     document.body.removeChild(a)
+    currentView.value = 'completed'
   } catch (error) {
     console.error('Download failed:', error)
     errorMessage.value = 'Download failed. Please try again.'
     currentView.value = 'confirm_download'
   }
+}
+
+function startNewSession() {
+  sessionStore.reset()
+  websocketClient.disconnect()
+  initializeSession()
 }
 </script>
 
@@ -160,6 +167,26 @@ async function downloadPDF() {
         <h2>Waiting for Confirmation</h2>
         <p class="info">Please confirm the download on your phone.</p>
         <p class="hint">Do not close this window.</p>
+      </div>
+
+      <!-- Completed -->
+      <div v-else-if="currentView === 'completed'" class="card">
+        <div class="success-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+        <h2>Download Complete</h2>
+        <p class="info" v-if="pageCount > 0">{{ pageCount }} {{ pageCount === 1 ? 'page' : 'pages' }} — PDF has been saved.</p>
+        <p class="info" v-else>The document has been downloaded successfully.</p>
+        <p class="hint">All session data has been deleted from the server.</p>
+        <button @click="startNewSession" class="btn btn-primary btn-lg">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px">
+            <polyline points="1 4 1 10 7 10"></polyline>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+          </svg>
+          New Session
+        </button>
       </div>
     </div>
 
