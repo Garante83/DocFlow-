@@ -807,21 +807,21 @@ Kritische Lucken in: cmd/server, websocket, handlers/qrcode, handlers/websocket
 
 | Aufgabe | Beschreibung | Status | Aufwand |
 |---------|--------------|--------|---------|
-| 6.1 | Session-Struct erweitern | ⬜ | 0.5h |
-| 6.2 | Config-Sektion PDF | ⬜ | 0.5h |
-| 6.3 | Multi-Page PDF + Komprimierung | ⬜ | 2h |
-| 6.4 | Upload-Handler anpassen | ⬜ | 1h |
-| 6.5 | Finalize-Handler (NEU) | ⬜ | 1h |
-| 6.6 | PDF-Handler anpassen | ⬜ | 0.5h |
-| 6.7 | Route registrieren | ⬜ | 0.25h |
-| 6.8 | WebSocket-Events (Frontend) | ⬜ | 0.25h |
-| 6.9 | API-Service (Frontend) | ⬜ | 0.25h |
-| 6.10 | Session-Store (Frontend) | ⬜ | 0.5h |
-| 6.11 | ImageUpload.vue Multi-Page | ⬜ | 2.5h |
-| 6.12 | MobileView.vue Finalize-Flow | ⬜ | 1.5h |
-| 6.13 | DesktopView.vue Seitenzaehler | ⬜ | 1h |
-| 6.14 | Backend Tests | ⬜ | 2h |
-| 6.15 | Frontend Tests | ⬜ | 1.5h |
+| 6.1 | ... | ✅ | 0.5h |
+| 6.2 | ... | ✅ | 0.5h |
+| 6.3 | ... | ✅ | 2h |
+| 6.4 | ... | ✅ | 1h |
+| 6.5 | ... | ✅ | 1h |
+| 6.6 | ... | ✅ | 0.5h |
+| 6.7 | ... | ✅ | 0.25h |
+| 6.8 | ... | ✅ | 0.25h |
+| 6.9 | ... | ✅ | 0.25h |
+| 6.10 | ... | ✅ | 0.5h |
+| 6.11 | ... | ✅ | 2.5h |
+| 6.12 | ... | ✅ | 1.5h |
+| 6.13 | ... | ✅ | 1h |
+| 6.14 | ... | ✅ | 2h |
+| 6.15 | ... | ✅ | 1.5h |
 
 **Empfohlene Reihenfolge:** 6.1 -> 6.2 -> 6.3 -> 6.4 -> 6.5 -> 6.6 -> 6.7 -> 6.8 -> 6.9 -> 6.10 -> 6.11 -> 6.12 -> 6.13 -> 6.14 -> 6.15
 
