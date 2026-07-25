@@ -31,6 +31,15 @@ func setupTestRouter() *gin.Engine {
 	Init(store, hub, cfg)
 
 	router := gin.Default()
+	api := router.Group("/api")
+	{
+		api.POST("/session", CreateSessionHandler)
+		api.POST("/session/:id/verify-pin", VerifyPINHandler)
+		api.GET("/session/:id/qrcode", QRCodeHandler)
+		api.POST("/session/:id/upload", UploadHandler)
+		api.GET("/session/:id/pdf", PDFHandler)
+		api.DELETE("/api/session/:id", DeleteSessionHandler)
+	}
 	return router
 }
 

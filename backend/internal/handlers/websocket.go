@@ -128,7 +128,12 @@ func parseOrigin(origin string) (*struct {
 	// Check if it's a valid URL
 	if !strings.Contains(origin, "://") {
 		// Assume http if no scheme
-		origin = "http://" + origin
+		// Also handle //example.com case (protocol-relative URL)
+		if strings.HasPrefix(origin, "//") {
+			origin = "http:" + origin
+		} else {
+			origin = "http://" + origin
+		}
 	}
 	
 	url, err := url.Parse(origin)
