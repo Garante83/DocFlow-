@@ -2,9 +2,17 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"embed"
+	"encoding/pem"
 	"io"
 	"log/slog"
+	"math/big"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,7 +27,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-//go:embed *
+//go:embed index.html favicon.ico favicon.svg assets
 var frontendFS embed.FS
 
 func getPort(cfg *config.Config) string {
@@ -41,8 +49,24 @@ func readEmbeddedFile(name string) []byte {
 	return data
 }
 
+// securityHeaders adds common security headers to all responses
+func securityHeaders() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("X-XSS-Protection", "1; mode=block")
+		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:")
+		c.Next()
+	}
+}
+
 func setupRouter() *gin.Engine {
 	r := gin.Default()
+
+	// Security headers for all responses
+	r.Use(securityHeaders())
 
 	api := r.Group("/api")
 	{
@@ -85,14 +109,14 @@ func setupRouter() *gin.Engine {
 
 		file, err = frontendFS.Open("index.html")
 		if err != nil {
-			c.String(500, "Frontend not embedded correctly: "+err.Error())
+			c.String(500, "Frontend not embedded correctly")
 			return
 		}
 		defer file.Close()
 
 		content, err := io.ReadAll(file)
 		if err != nil {
-			c.String(500, "Failed to read embedded frontend: "+err.Error())
+			c.String(500, "Failed to read embedded frontend")
 			return
 		}
 
@@ -103,14 +127,14 @@ func setupRouter() *gin.Engine {
 	r.GET("/", func(c *gin.Context) {
 		file, err := frontendFS.Open("index.html")
 		if err != nil {
-			c.String(500, "Frontend not embedded correctly: "+err.Error())
+			c.String(500, "Frontend not embedded correctly")
 			return
 		}
 		defer file.Close()
 
 		content, err := io.ReadAll(file)
 		if err != nil {
-			c.String(500, "Failed to read embedded frontend: "+err.Error())
+			c.String(500, "Failed to read embedded frontend")
 			return
 		}
 
@@ -135,7 +159,7 @@ func main() {
 	// 3. Session-Store mit Config-Werten initialisieren
 	sessionStore := session.NewStore()
 	cleanupStop := make(chan struct{})
-	go sessionStore.StartCleanup(cfg.Session.CleanupInterval)
+	sessionStore.StartCleanup(cfg.Session.CleanupInterval, cleanupStop)
 
 	// 4. WebSocket-Hub initialisieren
 	hub := websocket.NewHub()
@@ -147,19 +171,31 @@ func main() {
 	// 6. Router einrichten
 	r := setupRouter()
 
-	// Write embedded cert/key to temp files for TLS
-	certFile := writeTempFile("cert.pem", readEmbeddedFile("cert.pem"))
-	keyFile := writeTempFile("key.pem", readEmbeddedFile("key.pem"))
-	defer os.Remove(certFile)
-	defer os.Remove(keyFile)
+	// 7. TLS konfigurieren: Config-basiert oder temporaeres Cert
+	var certFile, keyFile string
+	if cfg.Server.TLSCertPath != "" && cfg.Server.TLSKeyPath != "" {
+		// Production: Nutze config-basierte Zertifikate
+		certFile = cfg.Server.TLSCertPath
+		keyFile = cfg.Server.TLSKeyPath
+		slog.Info("Using TLS certificates from config", "cert", certFile)
+	} else {
+		// Development: Generiere temporaeres self-signed Cert
+		certFile, keyFile = generateSelfSignedCert()
+		defer os.Remove(certFile)
+		defer os.Remove(keyFile)
+		slog.Info("Using auto-generated self-signed certificate")
+	}
 
-	// 7. HTTP-Server erstellen
+	// 8. HTTP-Server erstellen
 	srv := &http.Server{
 		Addr:    getPort(cfg),
 		Handler: r,
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
 	}
 
-	// 8. Graceful Shutdown starten
+	// 9. Graceful Shutdown starten
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -177,13 +213,44 @@ func main() {
 		slog.Info("Server stopped")
 	}()
 
-	// 9. Server starten
+	// 10. Server starten
 	slog.Info("Server starting", "addr", "0.0.0.0"+srv.Addr, "port", cfg.Server.Port)
-	slog.Info("Frontend available at https://localhost" + srv.Addr)
 	if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
 		slog.Error("Server failed", "error", err)
 		os.Exit(1)
 	}
+}
+
+// generateSelfSignedCert creates a temporary self-signed certificate and key.
+func generateSelfSignedCert() (certPath, keyPath string) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		slog.Error("Failed to generate private key", "error", err)
+		os.Exit(1)
+	}
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{Organization: []string{"Dokumentenscanner"}},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		slog.Error("Failed to create certificate", "error", err)
+		os.Exit(1)
+	}
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyDER, _ := x509.MarshalECPrivateKey(privateKey)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+	certPath = writeTempFile("cert.pem", certPEM)
+	keyPath = writeTempFile("key.pem", keyPEM)
+	return
 }
 
 func setupLogger(cfg *config.Config) {

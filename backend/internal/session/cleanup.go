@@ -15,15 +15,23 @@ const (
 
 // StartCleanup starts a goroutine that periodically cleans up expired sessions.
 // If interval is 0, DefaultCleanupInterval will be used.
-func (s *Store) StartCleanup(interval time.Duration) {
+// The goroutine stops when the stop channel is closed.
+func (s *Store) StartCleanup(interval time.Duration, stop chan struct{}) {
 	if interval == 0 {
 		interval = DefaultCleanupInterval
 	}
 
 	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
 		for {
-			time.Sleep(interval)
-			s.cleanupExpiredSessions()
+			select {
+			case <-stop:
+				slog.Debug("Session cleanup goroutine stopped")
+				return
+			case <-ticker.C:
+				s.cleanupExpiredSessions()
+			}
 		}
 	}()
 }

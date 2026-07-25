@@ -87,16 +87,15 @@ func TestReadEmbeddedFile_JavaScript(t *testing.T) {
 	t.Skip("No JS files found in embedded assets")
 }
 
-func TestReadEmbeddedFile_CertPEM(t *testing.T) {
-	data := readEmbeddedFile("cert.pem")
+func TestReadEmbeddedFile_Favicon(t *testing.T) {
+	data := readEmbeddedFile("favicon.ico")
 	require.NotEmpty(t, data)
-	assert.Contains(t, string(data), "BEGIN CERTIFICATE")
 }
 
-func TestReadEmbeddedFile_KeyPEM(t *testing.T) {
-	data := readEmbeddedFile("key.pem")
+func TestReadEmbeddedFile_FaviconSVG(t *testing.T) {
+	data := readEmbeddedFile("favicon.svg")
 	require.NotEmpty(t, data)
-	assert.Contains(t, string(data), "BEGIN")
+	assert.Contains(t, string(data), "svg")
 }
 
 // === setupLogger Tests ===

@@ -825,4 +825,142 @@ Kritische Lucken in: cmd/server, websocket, handlers/qrcode, handlers/websocket
 
 **Empfohlene Reihenfolge:** 6.1 -> 6.2 -> 6.3 -> 6.4 -> 6.5 -> 6.6 -> 6.7 -> 6.8 -> 6.9 -> 6.10 -> 6.11 -> 6.12 -> 6.13 -> 6.14 -> 6.15
 
+---
+
+## Phase 7: Security, DSGVO & Open Source
+
+> **Ziel**: Projekt ist bereit fuer oeffentliche Verwendung auf Git mit DSGVO- und Sicherheitskonformitaet.
+
+---
+
+### 7.1 LICENSE-File erstellen
+**Ziel**: Ohne Lizenz = "All Rights Reserved". Muss als erstes.
+
+**Datei:** `LICENSE` (NEU)
+
+**Aenderung:** MIT License oder Apache 2.0.
+
+**Akzeptanzkriterien:**
+- [ ] LICENSE-File im Projekt-Root
+- [ ] Copyright-Holder korrekt
+
+**Aufwand:** 0.1h
+
+---
+
+### 7.2 TLS-Pattern fixen
+**Ziel**: Private Keys nicht im Binary einbetten.
+
+**Dateien:** `backend/cmd/server/main.go` (ANPASSEN)
+
+**Problem:** `//go:embed *` bettet cert.pem + key.pem ein. Jeder mit dem Binary kann den Private-Key extrahieren.
+
+**Aenderung:**
+1. Cert/Key in separaten Ordner `certs/` verschieben, der NICHT embedded wird
+2. `//go:embed` auf `index.html`, `assets/`, `favicon.*` beschraenken
+3. Fallback: Wenn config-Basierte TLS-Pfade gesetzt sind, diese nutzen
+4. Wenn keine Pfade gesetzt: Temporaeres self-signed Cert generieren (crypto/tls)
+
+**Akzeptanzkriterien:**
+- [ ] cert.pem/key.pem nicht im Binary
+- [ ] Server startet mit config-basiertem TLS
+- [ ] Fallback: Temporaeres Cert wird generiert
+
+**Aufwand:** 1h
+
+---
+
+### 7.3 Rate-Limiting + Security-Headers
+**Ziel**: Grundlegende Schutzmassnahmen fuer oeffentlichen Einsatz.
+
+**Dateien:** `backend/cmd/server/main.go` (Middleware hinzufuegen)
+
+**Aenderungen:**
+1. Rate-Limiting Middleware: Max. 100 Requests/Minute pro IP
+2. Security-Headers Middleware:
+   - `X-Content-Type-Options: nosniff`
+   - `X-Frame-Options: DENY`
+   - `Strict-Transport-Security: max-age=31536000`
+   - `X-XSS-Protection: 1; mode=block`
+3. CORS-Middleware fuer HTTP-API
+
+**Akzeptanzkriterien:**
+- [ ] Rate-Limiting aktiv
+- [ ] Security-Header in jeder Antwort
+- [ ] CORS korrekt konfiguriert
+
+**Abhangigkeiten:** 7.2 | **Aufwand:** 1.5h
+
+---
+
+### 7.4 Cleanup-Goroutine Stop-Mechanismus
+**Ziel**: Sauberes Beenden der Cleanup-Goroutine beim Shutdown.
+
+**Dateien:** `backend/internal/session/cleanup.go` (ANPASSEN), `backend/cmd/server/main.go` (ANPASSEN)
+
+**Problem:** `cleanupStop` Channel ist toter Code. Die Goroutine laeuft endlos.
+
+**Aenderung:**
+1. `StartCleanup(interval, stopChan)` — nimmt stop-Channel entgegen
+2. `cleanupStop` an `StartCleanup` uebergeben
+3. Beim Shutdown: `close(cleanupStop)` -> Goroutine beendet sich
+
+**Akzeptanzkriterien:**
+- [ ] Cleanup-Goroutine hoert auf beim Shutdown
+- [ ] Kein Goroutine-Leak
+
+**Aufwand:** 0.5h
+
+---
+
+### 7.5 PRIVACY.md erstellen
+**Ziel**: DSGVO Art. 13 Informationspflicht erfuellen.
+
+**Datei:** `PRIVACY.md` (NEU)
+
+**Inhalt:**
+1. Verantwortlicher
+2. Verarbeitete Daten (Dokumentenbilder temporaer im RAM)
+3. Speicherdauer (nach Download oder 1h Timeout = Loeschung)
+4. Kein Logging von Dokumenteninhalten
+5. Keine Weitergabe an Dritte
+6. HTTPS-verschluesselte Uebertragung
+7. Rechte des Betroffenen (Loeschung via DELETE-Endpoint)
+
+**Akzeptanzkriterien:**
+- [ ] PRIVACY.md existiert
+- [ ] Alle DSGVO Art. 13 Punkte abgedeckt
+
+**Aufwand:** 0.5h
+
+---
+
+### 7.6 README auf Englisch erweitern
+**Ziel**: Fuer Open Source Publikation auf Englisch.
+
+**Datei:** `README.md` (ANPASSEN)
+
+**Aenderungen:**
+1. Englische Version oder bilinguales README
+2. Badges (License, Go Version, CI Status)
+3. CONTRIBUTING.md verlinken
+4. Security-Policy verlinken
+
+**Aufwand:** 1h
+
+---
+
+## Meilensteine Phase 7
+
+| Aufgabe | Beschreibung | Status | Aufwand |
+|---------|--------------|--------|---------|
+| 7.1 | LICENSE-File | ⬜ | 0.1h |
+| 7.2 | TLS-Pattern fixen | ⬜ | 1h |
+| 7.3 | Rate-Limiting + Security-Headers | ⬜ | 1.5h |
+| 7.4 | Cleanup-Goroutine Stop | ⬜ | 0.5h |
+| 7.5 | PRIVACY.md | ⬜ | 0.5h |
+| 7.6 | README auf Englisch | ⬜ | 1h |
+
+**Empfohlene Reihenfolge:** 7.1 -> 7.5 -> 7.2 -> 7.3 -> 7.4 -> 7.6
+
 *Letzte Aktualisierung: 2026-07-25*
