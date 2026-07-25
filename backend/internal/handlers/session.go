@@ -23,8 +23,10 @@ func CreateSessionHandler(c *gin.Context) {
 	deps.SessionStore.Update(sess)
 
 	c.JSON(http.StatusOK, gin.H{
-		"session_id": sess.ID,
-		"pin":        pin,
+		"session_id":       sess.ID,
+		"pin":              pin,
+		"max_file_size_mb": deps.Config.Upload.MaxFileSizeMB,
+		"max_pages":        deps.Config.PDF.MaxPages,
 	})
 }
 

@@ -115,9 +115,9 @@ func TestQRCodeHandler(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var sessionResp map[string]string
+	var sessionResp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &sessionResp)
-	sessionID := sessionResp["session_id"]
+	sessionID := sessionResp["session_id"].(string)
 
 	// Now test QRCodeHandler with the valid session
 	req = httptest.NewRequest("GET", "/api/session/"+sessionID+"/qrcode", nil)

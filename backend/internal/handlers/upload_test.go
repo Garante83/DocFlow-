@@ -76,12 +76,12 @@ func TestUploadHandlerSuccess(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var sessionResp map[string]string
+	var sessionResp map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &sessionResp)
 	require.NoError(t, err)
 
-	sessionID := sessionResp["session_id"]
-	pin := sessionResp["pin"]
+	sessionID := sessionResp["session_id"].(string)
+	pin := sessionResp["pin"].(string)
 
 	// Verify PIN
 	reqBody := map[string]string{"pin": pin}
@@ -154,9 +154,9 @@ func TestUploadHandlerNotAllowed(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 
-	var sessionResp map[string]string
+	var sessionResp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &sessionResp)
-	sessionID := sessionResp["session_id"]
+	sessionID := sessionResp["session_id"].(string)
 
 	// Try to upload without verifying PIN first
 	img := image.NewGray(image.Rect(0, 0, 10, 10))
@@ -186,10 +186,10 @@ func TestUploadHandlerInvalidFile(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	var sessionResp map[string]string
+	var sessionResp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &sessionResp)
-	sessionID := sessionResp["session_id"]
-	pin := sessionResp["pin"]
+	sessionID := sessionResp["session_id"].(string)
+	pin := sessionResp["pin"].(string)
 
 	// Verify PIN
 	reqBody := map[string]string{"pin": pin}
@@ -224,10 +224,10 @@ func TestUploadHandlerFileExceedsLimit(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	var sessionResp map[string]string
+	var sessionResp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &sessionResp)
-	sessionID := sessionResp["session_id"]
-	pin := sessionResp["pin"]
+	sessionID := sessionResp["session_id"].(string)
+	pin := sessionResp["pin"].(string)
 
 	// Verify PIN
 	reqBody := map[string]string{"pin": pin}
@@ -277,10 +277,10 @@ func TestUploadHandlerMissingFormField(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	var sessionResp map[string]string
+	var sessionResp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &sessionResp)
-	sessionID := sessionResp["session_id"]
-	pin := sessionResp["pin"]
+	sessionID := sessionResp["session_id"].(string)
+	pin := sessionResp["pin"].(string)
 
 	// Verify PIN
 	reqBody := map[string]string{"pin": pin}

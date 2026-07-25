@@ -66,8 +66,8 @@ function handleFileChange(event: Event) {
       errorMessage.value = 'Please select JPEG or PNG images'
       return
     }
-    if (file.size > 10 * 1024 * 1024) {
-      errorMessage.value = 'File size must be less than 10MB'
+    if (file.size > sessionStore.maxFileSizeMB * 1024 * 1024) {
+      errorMessage.value = `File size must be less than ${sessionStore.maxFileSizeMB}MB`
       return
     }
     selectedFile.value = file
@@ -99,13 +99,14 @@ async function uploadMultipleFiles(files: File[]) {
       failed++
       continue
     }
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > sessionStore.maxFileSizeMB * 1024 * 1024) {
       failed++
       continue
     }
     try {
-      await apiService.uploadImage(sessionStore.sessionID, file)
-      sessionStore.addImage(file)
+      const normalized = await normalizeImage(file, 0)
+      await apiService.uploadImage(sessionStore.sessionID, normalized)
+      sessionStore.addImage(normalized)
       uploaded++
     } catch (error) {
       failed++
@@ -406,7 +407,9 @@ function resetEdit() {
 
 // ==================== UPLOAD ====================
 
-async function rotateImage(file: File, degrees: number): Promise<File> {
+// Normalize image through canvas to strip EXIF orientation and apply rotation
+// This ensures correct pixel orientation in the uploaded JPEG
+async function normalizeImage(file: File, degrees: number): Promise<File> {
   const bmp = await loadImageBitmap(file)
   return new Promise((resolve) => {
     const canvas = document.createElement('canvas')
@@ -429,6 +432,10 @@ async function rotateImage(file: File, degrees: number): Promise<File> {
   })
 }
 
+async function rotateImage(file: File, degrees: number): Promise<File> {
+  return normalizeImage(file, degrees)
+}
+
 async function uploadFile() {
   if (!selectedFile.value || !sessionStore.sessionID) return
 
@@ -437,12 +444,10 @@ async function uploadFile() {
   successMessage.value = null
 
   try {
+    // Always normalize through canvas to strip EXIF orientation
+    // and bake correct pixel orientation into the JPEG
     let fileToUpload = selectedFile.value
-
-    // Apply rotation if needed
-    if (rotation.value !== 0) {
-      fileToUpload = await rotateImage(fileToUpload, rotation.value)
-    }
+    fileToUpload = await normalizeImage(fileToUpload, rotation.value)
 
     const response = await apiService.uploadImage(sessionStore.sessionID, fileToUpload)
     sessionStore.addImage(fileToUpload)
@@ -491,6 +496,7 @@ onUnmounted(() => {
         <h2>Upload Document</h2>
         <p class="info" v-if="sessionStore.imageCount === 0">Take a photo or select images</p>
         <p class="info" v-else>{{ sessionStore.imageCount }} {{ sessionStore.imageCount === 1 ? 'page' : 'pages' }} added</p>
+        <p class="limit-info">Max. {{ sessionStore.maxFileSizeMB }}MB per image · Max. {{ sessionStore.maxPages }} pages</p>
       </div>
 
       <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
@@ -669,6 +675,7 @@ onUnmounted(() => {
 .header { text-align: center; }
 .header h2 { font-size: 1.4rem; font-weight: 700; color: var(--color-text); margin-bottom: 4px; }
 .info { color: var(--color-text-secondary); font-size: 0.9rem; }
+.limit-info { color: var(--color-text-muted); font-size: 0.75rem; font-weight: 500; }
 .file-input { display: none; }
 
 /* PAGE LIST */

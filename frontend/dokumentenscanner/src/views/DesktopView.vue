@@ -36,6 +36,7 @@ async function initializeSession() {
     const response = await apiService.createSession()
     sessionStore.setSessionID(response.session_id)
     sessionStore.setPIN(response.pin)
+    sessionStore.setLimits(response.max_file_size_mb || 10, response.max_pages || 20)
     sessionStore.setStatus('waiting_for_pin')
 
     websocketClient.connect(response.session_id)

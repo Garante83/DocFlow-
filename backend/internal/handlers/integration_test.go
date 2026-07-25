@@ -280,9 +280,9 @@ func TestConcurrentSessions(t *testing.T) {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
-		var sessionResp map[string]string
+		var sessionResp map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &sessionResp)
-		sessionIDs = append(sessionIDs, sessionResp["session_id"])
+		sessionIDs = append(sessionIDs, sessionResp["session_id"].(string))
 	}
 
 	for _, id := range sessionIDs {

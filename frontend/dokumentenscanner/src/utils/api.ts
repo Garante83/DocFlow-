@@ -76,7 +76,8 @@ api.interceptors.response.use(
 export interface CreateSessionResponse {
   session_id: string
   pin: string
-  message: string
+  max_file_size_mb?: number
+  max_pages?: number
 }
 
 export interface VerifyPINResponse {

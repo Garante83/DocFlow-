@@ -23,6 +23,8 @@ export const useSessionStore = defineStore('session', () => {
   const lockedUntil = ref<Date | null>(null)
   const frontendURL = ref<string>(import.meta.env.VITE_FRONTEND_URL || 'http://localhost:8080')
   const backendURL = ref<string>(import.meta.env.VITE_BACKEND_URL || window.location.origin)
+  const maxFileSizeMB = ref<number>(10)
+  const maxPages = ref<number>(20)
 
   // Getters
   const isActive = computed(() => !!sessionID.value)
@@ -67,6 +69,11 @@ export const useSessionStore = defineStore('session', () => {
     pin.value = newPin
   }
 
+  function setLimits(size: number, pages: number) {
+    maxFileSizeMB.value = size
+    maxPages.value = pages
+  }
+
   function incrementFailedAttempts() {
     failedAttempts.value++
   }
@@ -93,6 +100,8 @@ export const useSessionStore = defineStore('session', () => {
     pin.value = ''
     failedAttempts.value = 0
     lockedUntil.value = null
+    maxFileSizeMB.value = 10
+    maxPages.value = 20
   }
 
   return {
@@ -105,6 +114,8 @@ export const useSessionStore = defineStore('session', () => {
     lockedUntil,
     frontendURL,
     backendURL,
+    maxFileSizeMB,
+    maxPages,
     isActive,
     isLocked,
     apiBaseURL,
@@ -117,6 +128,7 @@ export const useSessionStore = defineStore('session', () => {
     reorderImage,
     setPDF,
     setPIN,
+    setLimits,
     incrementFailedAttempts,
     resetFailedAttempts,
     setLockedUntil,
