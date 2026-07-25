@@ -5,6 +5,7 @@ import { apiService } from '../utils/api'
 
 interface Emits {
   (e: 'pageAdded', data: { page_count: number }): void
+  (e: 'finalize'): void
   (e: 'back'): void
 }
 
@@ -48,25 +49,74 @@ async function loadImageBitmap(file: File): Promise<ImageBitmap> {
 
 function handleFileChange(event: Event) {
   const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (!file) return
+  const files = target.files
+  if (!files || files.length === 0) return
 
   const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
-  if (!validTypes.includes(file.type)) {
-    errorMessage.value = 'Please select a JPEG or PNG image'
-    return
-  }
-  if (file.size > 10 * 1024 * 1024) {
-    errorMessage.value = 'File size must be less than 10MB'
+
+  // If only one file, show it in edit mode
+  if (files.length === 1) {
+    const file = files[0]
+    if (!validTypes.includes(file.type)) {
+      errorMessage.value = 'Please select JPEG or PNG images'
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      errorMessage.value = 'File size must be less than 10MB'
+      return
+    }
+    selectedFile.value = file
+    errorMessage.value = null
+    successMessage.value = null
+    previewUrl.value = URL.createObjectURL(file)
+    rotation.value = 0
+    mode.value = 'edit'
     return
   }
 
-  selectedFile.value = file
+  // Multiple files: upload all directly
+  uploadMultipleFiles(Array.from(files))
+}
+
+async function uploadMultipleFiles(files: File[]) {
+  if (!sessionStore.sessionID) return
+
+  isUploading.value = true
   errorMessage.value = null
   successMessage.value = null
-  previewUrl.value = URL.createObjectURL(file)
-  rotation.value = 0
-  mode.value = 'edit'
+
+  const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
+  let uploaded = 0
+  let failed = 0
+
+  for (const file of files) {
+    if (!validTypes.includes(file.type)) {
+      failed++
+      continue
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      failed++
+      continue
+    }
+    try {
+      await apiService.uploadImage(sessionStore.sessionID, file)
+      sessionStore.addImage(file)
+      uploaded++
+    } catch (error) {
+      failed++
+    }
+  }
+
+  if (uploaded > 0) {
+    sessionStore.setStatus('uploading')
+    emit('pageAdded', { page_count: sessionStore.imageCount })
+    successMessage.value = `${uploaded} ${uploaded === 1 ? 'page' : 'pages'} added successfully!`
+  }
+  if (failed > 0) {
+    errorMessage.value = `${failed} file(s) failed to upload (invalid type or too large)`
+  }
+
+  isUploading.value = false
 }
 
 function triggerFileInput() {
@@ -432,8 +482,11 @@ onUnmounted(() => {
     <template v-if="mode === 'choose'">
       <div class="header">
         <h2>Upload Document</h2>
-        <p class="info">Take a photo or select an image</p>
+        <p class="info" v-if="sessionStore.imageCount === 0">Take a photo or select images</p>
+        <p class="info" v-else>{{ sessionStore.imageCount }} {{ sessionStore.imageCount === 1 ? 'page' : 'pages' }} added</p>
       </div>
+
+      <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
 
       <div class="choose-actions">
         <button @click="openCamera" class="choose-btn camera-btn">
@@ -460,6 +513,7 @@ onUnmounted(() => {
         ref="fileInput"
         type="file"
         accept="image/jpeg,image/png,image/jpg"
+        multiple
         @change="handleFileChange"
         class="file-input"
       />
@@ -481,6 +535,16 @@ onUnmounted(() => {
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Finalize button -->
+      <div v-if="sessionStore.imageCount > 0" class="finalize-section">
+        <button @click="$emit('finalize')" class="btn btn-success btn-full">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Generate PDF
+        </button>
       </div>
     </template>
 
@@ -626,6 +690,15 @@ onUnmounted(() => {
   transition: var(--transition);
 }
 .page-remove:hover { background: #dc2626; transform: scale(1.1); }
+
+/* FINALIZE */
+.finalize-section { width: 100%; }
+.btn-full { width: 100%; }
+.btn-success {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+.btn-success:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4); }
 
 /* CHOOSE */
 .choose-actions { display: flex; gap: 16px; width: 100%; }

@@ -107,6 +107,7 @@ function confirmDownload() {
       <ImageUpload
         v-else-if="currentView === 'upload'"
         @page-added="handlePageAdded"
+        @finalize="handleFinalize"
         @back="handleBackToPIN"
       />
 
