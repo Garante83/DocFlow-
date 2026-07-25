@@ -125,9 +125,6 @@ class WebSocketClient {
     if (handlers) {
       handlers.forEach(handler => handler(message.data))
     }
-
-    // Also emit a generic event
-    this.emitEvent(message.event, message.data)
   }
 
   private emitEvent(event: WebSocketEventType, data: unknown): void {

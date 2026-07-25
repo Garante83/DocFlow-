@@ -110,7 +110,7 @@ func TestDefaultConfig_AllFields(t *testing.T) {
 	// WebSocket
 	assert.Equal(t, 60*time.Second, cfg.WebSocket.ReadDeadline)
 	assert.Equal(t, 30*time.Second, cfg.WebSocket.PingInterval)
-	assert.Equal(t, []string{"localhost:8082", "127.0.0.1:8082"}, cfg.WebSocket.AllowedOrigins)
+	assert.Equal(t, []string{"https://localhost:8082", "https://127.0.0.1:8082", "http://localhost:8082", "http://127.0.0.1:8082"}, cfg.WebSocket.AllowedOrigins)
 	assert.True(t, cfg.WebSocket.AllowPrivateIPs)
 
 	// Logging

@@ -70,7 +70,7 @@ func DefaultConfig() *Config {
 	// WebSocket
 	cfg.WebSocket.ReadDeadline = 60 * time.Second
 	cfg.WebSocket.PingInterval = 30 * time.Second
-	cfg.WebSocket.AllowedOrigins = []string{"localhost:8082", "127.0.0.1:8082"}
+	cfg.WebSocket.AllowedOrigins = []string{"https://localhost:8082", "https://127.0.0.1:8082", "http://localhost:8082", "http://127.0.0.1:8082"}
 	cfg.WebSocket.AllowPrivateIPs = true
 	
 	// Logging
@@ -155,7 +155,7 @@ func parseFlags(v *viper.Viper) {
 	if f := flag.Lookup("host"); f != nil && f.Value.String() != f.DefValue {
 		v.Set("server.host", f.Value.String())
 	}
-	if f := flag.Lookup("ws-allow-private-ips"); f != nil {
+	if f := flag.Lookup("ws-allow-private-ips"); f != nil && f.Value.String() != f.DefValue {
 		v.Set("websocket.allow_private_ips", f.Value.String() == "true")
 	}
 	if f := flag.Lookup("ws-origins"); f != nil && f.Value.String() != f.DefValue {

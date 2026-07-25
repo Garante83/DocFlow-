@@ -16,12 +16,17 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  websocketClient.off('image_uploaded', onImageUploaded)
+  websocketClient.off('download_confirmed', onDownloadConfirmed)
   websocketClient.disconnect()
 })
 
 async function initializeSession() {
   currentView.value = 'loading'
   errorMessage.value = null
+
+  websocketClient.off('image_uploaded', onImageUploaded)
+  websocketClient.off('download_confirmed', onDownloadConfirmed)
 
   try {
     const response = await apiService.createSession()
@@ -31,14 +36,8 @@ async function initializeSession() {
 
     websocketClient.connect(response.session_id)
 
-    websocketClient.on('image_uploaded', () => {
-      currentView.value = 'confirm_download'
-    })
-
-    websocketClient.on('download_confirmed', () => {
-      currentView.value = 'confirm_download'
-      downloadPDF()
-    })
+    websocketClient.on('image_uploaded', onImageUploaded)
+    websocketClient.on('download_confirmed', onDownloadConfirmed)
 
     currentView.value = 'qr_display'
   } catch (error) {
@@ -46,6 +45,15 @@ async function initializeSession() {
     errorMessage.value = 'Failed to create session. Please check your connection.'
     currentView.value = 'error'
   }
+}
+
+function onImageUploaded() {
+  currentView.value = 'confirm_download'
+}
+
+function onDownloadConfirmed() {
+  currentView.value = 'confirm_download'
+  downloadPDF()
 }
 
 function requestDownload() {
