@@ -507,10 +507,10 @@ npm run dev
 | `WARN` | Fehlgeschlagene PIN-Versuche, Session-Timeout | `{"level":"WARN","msg":"Invalid PIN attempt","session_id":"abc-123","attempt":2}` |
 | `ERROR` | WebSocket-Fehler, PDF-Generierung fehlgeschlagen | `{"level":"ERROR","msg":"PDF generation failed","error":"..."}` |
 
-**Geplante Integration** (siehe [Roadmap](#10-bekannte-bugs--roadmap)):
-- `cmd/server/main.go`: `slog.Info` fuer Start/Stop
-- `handlers/*`: `slog.Info` fuer Requests, `slog.Warn` fuer PIN-Fehler
-- `websocket/*`: `slog.Debug` fuer Nachrichten, `slog.Error` fuer Fehler
+**Implementiertes Logging:**
+- `cmd/server/main.go`: `slog.Info` für Start/Stop
+- `handlers/websocket.go`: `slog.Error` für Upgrade-Fehler, `slog.Warn` für Session-Fehler, `slog.Debug` für Nachrichten
+- `session/cleanup.go`: `slog.Debug` für Cleanup-Infos
 
 ---
 
@@ -591,7 +591,7 @@ graph TD
 | `pkg/utils` | 82.4% |
 | `internal/config` | 74.5% |
 | `internal/session` | 70.0% |
-| `internal/handlers` | 65.2% |
+| `internal/handlers` | 68.0% |
 | `internal/websocket` | 93.9% |
 | `cmd/server` | 14.6% |
 
@@ -649,7 +649,9 @@ npx vitest run --reporter=verbose  # Detailliert
 | DesktopView Handler-Leak | ✅ | Named Functions + cleanup in onUnmounted (DesktopView.vue) |
 | Config-Test fehlgeschlagen | ✅ | Expected AllowedOrigins mit Protokoll-Prefixen aktualisiert |
 
-### Abgeschlossene Phase 3 Aufgaben
+### Abgeschlossene Phasen
+
+**Phase 3 (Konfigurationsmanagement)** — alle Aufgaben abgeschlossen ✅
 
 | Aufgabe | Beschreibung | Status |
 |---------|--------------|--------|
@@ -662,14 +664,27 @@ npx vitest run --reporter=verbose  # Detailliert
 | 3.6 Makefile Config | Docker-Build-Ziele | ✅ |
 | 3.7 Config-Tests | Unit-Tests für Config | ✅ |
 | 3.8 Docker | Containerisierung | ✅ |
+| 3.9 Dokumentation | Config-Referenz in Doku | ✅ |
 
-### Nächste Meilensteine (Phase 4)
-| Aufgabe | Beschreibung | Priorität |
-|---------|--------------|-----------|
-| 4.1 Graceful Shutdown | Sauberes Beenden mit Signal-Handling | Mittel |
-| 4.2 Frontend Tests erweitern | ImageUpload-Component-Tests, E2E-Tests | Hoch |
-| 4.3 Makefile finalisieren | Komplette Build-Infrastruktur | Niedrig |
-| 4.4 Frontend Coverage | Vitest Coverage-Tooling aktivieren | Niedrig |
+**Phase 4 (Infrastruktur)** — alle Aufgaben abgeschlossen ✅
+
+| Aufgabe | Beschreibung | Status |
+|---------|--------------|--------|
+| 4.1 Graceful Shutdown | http.Server + SIGINT/SIGTERM + 10s Timeout | ✅ |
+| 4.2 Strukturiertes Logging | 0x log.Printf, komplett auf slog umgestellt | ✅ |
+| 4.3 Makefile final | lint, fmt, all Targets | ✅ |
+
+**Phase 5 (Testing)** — alle Aufgaben abgeschlossen ✅
+
+| Aufgabe | Beschreibung | Status |
+|---------|--------------|--------|
+| 5.0 WebSocket-Hub Tests | Register, Unregister, Broadcast (93.9% Coverage) | ✅ |
+| 5.1 WebSocket-Handler Tests | isPrivateIP, parseOrigin, createOriginChecker | ✅ |
+| 5.2 QRCode-Handler Tests | getFrontendURL, getDefaultPort, getLocalIP | ✅ |
+| 5.3 Main/Server Tests | getPort, readEmbeddedFile, setupLogger, writeTempFile | ✅ |
+| 5.4 Upload-Handler Tests | 6 Tests: Success, InvalidSession, NotAllowed, InvalidFile, FileExceedsLimit, MissingFormField | ✅ |
+| 5.5 Integrationstests | Full Workflow, QR-Code, PIN-Lockout, Concurrent Sessions, WebSocket Broadcast | ✅ |
+| 5.6 Config-Tests | bindEnvVars, parseFlags | ✅ |
 
 ---
 
