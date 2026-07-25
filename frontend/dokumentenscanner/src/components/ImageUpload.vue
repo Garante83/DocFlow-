@@ -43,6 +43,11 @@ const dragOffset = ref({ x: 0, y: 0 })
 
 const canUpload = computed(() => selectedFile.value !== null && !isUploading.value && !errorMessage.value)
 
+// Pre-compute blob URLs for page thumbnails (avoids Memory Leak from URL.createObjectURL in template)
+const pageThumbs = computed(() => {
+  return sessionStore.images.map((file) => URL.createObjectURL(file))
+})
+
 async function loadImageBitmap(file: File): Promise<ImageBitmap> {
   return createImageBitmap(file, { orientation: 'from-image' })
 }
@@ -473,6 +478,8 @@ function formatFileSize(bytes: number): string {
 onUnmounted(() => {
   closeCamera()
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  // Revoke pre-computed blob URLs
+  pageThumbs.value.forEach((url) => URL.revokeObjectURL(url))
 })
 </script>
 
@@ -525,7 +532,7 @@ onUnmounted(() => {
         <h3 class="page-list-title">{{ sessionStore.imageCount }} {{ sessionStore.imageCount === 1 ? 'Page' : 'Pages' }}</h3>
         <div class="page-items">
           <div v-for="(file, index) in sessionStore.images" :key="index" class="page-item">
-            <img :src="URL.createObjectURL(file)" class="page-thumb" />
+            <img :src="pageThumbs[index]" class="page-thumb" />
             <span class="page-number">{{ index + 1 }}</span>
             <button @click="sessionStore.removeImage(index)" class="page-remove" title="Remove page">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
