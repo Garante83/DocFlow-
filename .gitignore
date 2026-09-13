@@ -6,6 +6,8 @@ vendor/
 backend/server
 backend/server.log
 backend/web/
+backend/docflow
+backend/docflow-linux-amd64
 *.exe
 *.exe~
 *.dll
@@ -15,6 +17,12 @@ backend/web/
 # Frontend build
 frontend/dokumentenscanner/dist/
 frontend/dokumentenscanner/dist-ssr/
+
+# Embedded frontend copies (rebuilt via make frontend-build)
+backend/cmd/server/assets/
+backend/cmd/server/index.html
+backend/cmd/server/favicon.ico
+backend/cmd/server/favicon.svg
 
 # TLS certificates (regenerated per host)
 backend/cmd/server/cert.pem
@@ -47,4 +55,3 @@ npm-debug.log*
 
 # Temp
 /tmp/
-Dokumentenscanner-Dokumentation.pdf

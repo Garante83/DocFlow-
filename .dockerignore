@@ -8,13 +8,6 @@
 *.swp
 *.swo
 
-# Build artifacts
-go.mod
-go.sum
-server
-server-dev
-server-prod
-
 # Logs
 *.log
 
@@ -22,7 +15,30 @@ server-prod
 .DS_Store
 Thumbs.db
 
-# Frontend build (if any)
-node_modules
-package-lock.json
-dist
+# Local dependencies (installed fresh inside containers)
+**/node_modules
+
+# Local build outputs (rebuilt fresh inside containers)
+frontend/dokumentenscanner/dist
+frontend/dokumentenscanner/.eslintcache
+frontend/dokumentenscanner/coverage
+
+# Embedded frontend copies (rebuilt fresh inside containers)
+backend/cmd/server/assets
+backend/cmd/server/index.html
+backend/cmd/server/favicon.ico
+backend/cmd/server/favicon.svg
+
+# TLS certificates (never in image)
+*.pem
+
+# Local binaries (rebuilt inside containers)
+backend/server
+backend/server-dev
+backend/server-prod
+backend/docflow
+
+# Docs and local artifacts
+*.pdf
+coverage.html
+backend/coverage.out

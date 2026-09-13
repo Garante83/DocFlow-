@@ -11,7 +11,7 @@ services:
       - "8082:8082"
     volumes:
       # Mount config directory - allows runtime configuration without rebuild
-      - ./config:/app/config:ro
+      - ./backend/config:/app/config:ro
     environment:
       # Server configuration
       - DSCAN_SERVER_PORT=8082

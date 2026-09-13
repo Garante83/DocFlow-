@@ -1,23 +1,42 @@
-# Dockerfile for Dokumentenscanner Backend
-# Multi-stage build for smaller final image
+# Dockerfile for DocFlow Backend
+# Multi-stage build: frontend -> backend -> runtime
+# Produces a self-contained image with the embedded frontend.
 
-# Build stage
-FROM golang:1.21-alpine AS builder
+# Stage 1: Build frontend
+FROM node:22-alpine AS frontend
 
-WORKDIR /app
+WORKDIR /app/frontend
 
-# Copy go module files
-COPY backend/go.mod backend/go.sum ./backend/
-RUN cd backend && go mod download
+# Copy frontend package files and install dependencies
+COPY frontend/dokumentenscanner/package.json frontend/dokumentenscanner/package-lock.json ./
+RUN npm ci
 
-# Copy source code
-COPY backend/ ./backend/
+# Copy frontend source and build
+COPY frontend/dokumentenscanner/ ./
+RUN npm run build
+
+# Stage 2: Build backend binary with embedded frontend
+FROM golang:1.21-alpine AS backend
+
+WORKDIR /app/backend
+
+# Copy go module files and download dependencies
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+
+# Copy backend source
+COPY backend/ ./
+
+# Copy fresh frontend build into the embed directory
+COPY --from=frontend /app/frontend/dist/index.html cmd/server/index.html
+COPY --from=frontend /app/frontend/dist/favicon.ico cmd/server/favicon.ico
+COPY --from=frontend /app/frontend/dist/favicon.svg cmd/server/favicon.svg
+COPY --from=frontend /app/frontend/dist/assets/ cmd/server/assets/
 
 # Build the server binary
-RUN cd backend && \
-    CGO_ENABLED=0 GOOS=linux go build -o /app/server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/server ./cmd/server
 
-# Runtime stage
+# Stage 3: Runtime
 FROM alpine:latest
 
 WORKDIR /app
@@ -26,10 +45,10 @@ WORKDIR /app
 RUN apk --no-cache add ca-certificates
 
 # Copy binary from builder
-COPY --from=builder /app/server /app/server
+COPY --from=backend /app/server /app/server
 
 # Copy default config files (can be overridden by volume mount)
-COPY --from=builder /app/backend/config /app/config
+COPY --from=backend /app/backend/config /app/config
 
 # Create non-root user for security
 RUN adduser -D -u 1000 appuser && \

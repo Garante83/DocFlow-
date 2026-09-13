@@ -1,4 +1,4 @@
-.PHONY: test all build clean lint fmt config-dev config-prod build-dev build-prod tidy coverage run
+.PHONY: test all build clean lint fmt config-dev config-prod build-dev build-prod tidy coverage run release frontend-build
 
 # Run all tests
 test:
@@ -30,7 +30,7 @@ run:
 
 # Clean build artifacts
 clean:
-	rm -f server server-dev server-prod coverage.out coverage.html
+	rm -f server server-dev server-prod docflow coverage.out coverage.html
 
 # Tidy go.mod
 tidy:
@@ -57,3 +57,17 @@ build-prod:
 	cp config/config.prod.yaml config/config.yaml
 	go build -o server-prod ./cmd/server
 	@echo "Built with production config"
+
+# Build frontend and copy assets into the embed directory
+frontend-build:
+	cd ../frontend/dokumentenscanner && npm run build
+	rm -rf cmd/server/assets
+	cp ../frontend/dokumentenscanner/dist/index.html cmd/server/index.html
+	cp ../frontend/dokumentenscanner/dist/favicon.* cmd/server/
+	cp -r ../frontend/dokumentenscanner/dist/assets cmd/server/assets
+	@echo "Frontend assets copied to cmd/server/"
+
+# Single-binary release build (frontend + backend)
+release: frontend-build
+	go build -ldflags="-s -w" -o docflow ./cmd/server
+	@echo "Release binary built: docflow"

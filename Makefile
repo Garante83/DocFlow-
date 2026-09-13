@@ -1,4 +1,19 @@
-.PHONY: docker-build docker-run docker-down docker-clean docker-test
+.PHONY: docker-build docker-run docker-down docker-clean docker-test release release-linux release-clean
+
+# Release build (single binary: frontend embedded + backend)
+release:
+	$(MAKE) -C backend release
+	@echo "Release binary: backend/docflow"
+
+# Cross-compile release binary for Linux (amd64)
+release-linux:
+	$(MAKE) -C backend frontend-build
+	cd backend && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o docflow-linux-amd64 ./cmd/server
+	@echo "Release binary: backend/docflow-linux-amd64"
+
+# Remove release binaries
+release-clean:
+	rm -f backend/docflow backend/docflow-linux-amd64
 
 # Docker targets (run from project root)
 
