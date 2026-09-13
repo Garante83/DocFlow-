@@ -1,11 +1,11 @@
-# Dokumentenscanner - Produktionskonfiguration
+# DocFlow - Produktionskonfiguration
 # Erbt von config.default.yaml und überschreibt Produktions-spezifische Werte
 
 server:
   port: "443"
   host: "0.0.0.0"
-  tls_cert_path: "/etc/letsencrypt/live/dokumentenscanner/fullchain.pem"
-  tls_key_path: "/etc/letsencrypt/live/dokumentenscanner/privkey.pem"
+  tls_cert_path: "/etc/letsencrypt/live/docflow/fullchain.pem"
+  tls_key_path: "/etc/letsencrypt/live/docflow/privkey.pem"
 
 session:
   timeout: 1h
@@ -19,13 +19,23 @@ upload:
     - "image/jpeg"
     - "image/png"
 
+pdf:
+  max_pages: 20
+  jpeg_quality: 85
+  compress_output: true
+
 websocket:
   read_deadline: 30s
   ping_interval: 15s
   allowed_origins:
-    - "https://dokumentenscanner.example.com"
+    - "https://docflow.example.com"
   allow_private_ips: false
 
 logging:
   level: "info"
   format: "json"
+
+rate_limit:
+  enabled: true
+  max_requests: 60
+  window_seconds: 60

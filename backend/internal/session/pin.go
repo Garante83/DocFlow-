@@ -2,6 +2,7 @@ package session
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -12,10 +13,22 @@ import (
 
 // PIN configuration constants
 const (
-	pinLength       = 6
-	maxAttempts     = 3
-	lockoutDuration = 5 * time.Minute
+	pinLength = 6
 )
+
+// PINConfig holds configurable PIN verification settings.
+type PINConfig struct {
+	MaxAttempts     int
+	LockoutDuration time.Duration
+}
+
+// DefaultPINConfig returns default PIN configuration.
+func DefaultPINConfig() *PINConfig {
+	return &PINConfig{
+		MaxAttempts:     3,
+		LockoutDuration: 5 * time.Minute,
+	}
+}
 
 // ErrPINLocked is returned when a session is temporarily locked due to too many failed attempts.
 var ErrPINLocked = errors.New("session is temporarily locked due to too many failed attempts")
@@ -34,8 +47,12 @@ func GeneratePIN() string {
 }
 
 // VerifyPIN verifies the provided PIN against the session's PIN.
-// It enforces a maximum of 3 attempts and a 5-minute lockout after the first failed attempt.
-func VerifyPIN(store *Store, sessionID uuid.UUID, attempt string) error {
+// It enforces a configurable maximum of attempts and lockout duration.
+func VerifyPIN(store *Store, sessionID uuid.UUID, attempt string, cfg *PINConfig) error {
+	if cfg == nil {
+		cfg = DefaultPINConfig()
+	}
+
 	session, exists := store.Get(sessionID)
 	if !exists {
 		return fmt.Errorf("session not found")
@@ -47,17 +64,17 @@ func VerifyPIN(store *Store, sessionID uuid.UUID, attempt string) error {
 	}
 
 	// Lock after max attempts
-	if session.FailedAttempts >= maxAttempts {
+	if session.FailedAttempts >= cfg.MaxAttempts {
 		return ErrPINLocked
 	}
 
-	// Check if the PIN is correct
-	if session.PIN != attempt {
+	// Check if the PIN is correct (constant-time comparison to prevent timing attacks)
+	if subtle.ConstantTimeCompare([]byte(session.PIN), []byte(attempt)) != 1 {
 		session.FailedAttempts++
 
 		// Lock the session after the first failed attempt
 		if session.FailedAttempts == 1 {
-			session.LockedUntil = time.Now().Add(lockoutDuration)
+			session.LockedUntil = time.Now().Add(cfg.LockoutDuration)
 		}
 
 		return ErrInvalidPIN

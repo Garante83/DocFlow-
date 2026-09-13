@@ -2,8 +2,9 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
-	"dokumentenscanner/internal/session"
+	"docflow/internal/session"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -49,7 +50,19 @@ func VerifyPINHandler(c *gin.Context) {
 		return
 	}
 
-	err = session.VerifyPIN(deps.SessionStore, sessionID, request.PIN)
+	// Create PIN config from application config
+	pinCfg := &session.PINConfig{
+		MaxAttempts:     deps.Config.Session.MaxFailedAttempts,
+		LockoutDuration: deps.Config.Session.LockoutDuration,
+	}
+	if pinCfg.MaxAttempts <= 0 {
+		pinCfg.MaxAttempts = 3
+	}
+	if pinCfg.LockoutDuration <= 0 {
+		pinCfg.LockoutDuration = 5 * time.Minute
+	}
+
+	err = session.VerifyPIN(deps.SessionStore, sessionID, request.PIN, pinCfg)
 	if err != nil {
 		if err == session.ErrPINLocked {
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": err.Error()})

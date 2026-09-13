@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net"
 	"net/http"
@@ -8,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"dokumentenscanner/internal/config"
-	ws "dokumentenscanner/internal/websocket"
+	"docflow/internal/config"
+	ws "docflow/internal/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -26,6 +27,11 @@ func isPrivateIP(ip string) bool {
 	// Remove port if present
 	if strings.Contains(ip, ":") {
 		ip = strings.Split(ip, ":")[0]
+	}
+
+	// localhost always counts as local
+	if ip == "localhost" {
+		return true
 	}
 
 	// Parse the IP
@@ -169,25 +175,42 @@ func WebSocketHandler(c *gin.Context) {
 		CheckOrigin:     createOriginChecker(cfg),
 	}
 
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
-		slog.Error("Failed to upgrade to WebSocket", "error", err)
-		return
-	}
-
+	// Validate session and token before upgrading
 	sessionIDStr := c.Param("id")
 	sessionID, err := uuid.Parse(sessionIDStr)
 	if err != nil {
 		slog.Warn("Invalid session ID", "error", err)
-		conn.Close()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session ID"})
 		return
 	}
 
-	// Check if the session exists
-	_, exists := deps.SessionStore.Get(sessionID)
+	// Get token from query parameter
+	token := c.Query("token")
+	if token == "" {
+		slog.Warn("WebSocket connection without token", "session_id", sessionID)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token required"})
+		return
+	}
+
+	// Check if the session exists and validate token
+	sess, exists := deps.SessionStore.Get(sessionID)
 	if !exists {
 		slog.Warn("Session not found", "session_id", sessionID)
-		conn.Close()
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+
+	// Validate token against session PIN
+	if sess.PIN != token {
+		slog.Warn("Invalid WebSocket token", "session_id", sessionID)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return
+	}
+
+	// Upgrade to WebSocket only after authentication
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		slog.Error("Failed to upgrade to WebSocket", "error", err)
 		return
 	}
 
@@ -206,6 +229,9 @@ func WebSocketHandler(c *gin.Context) {
 
 	// Set initial read deadline
 	conn.SetReadDeadline(time.Now().Add(wsConfig.ReadDeadline))
+
+	// Set read limit to prevent memory exhaustion from oversized messages
+	conn.SetReadLimit(4096)
 
 	// Handle pong messages to reset read deadline
 	conn.SetPongHandler(func(string) error {
@@ -233,7 +259,14 @@ func WebSocketHandler(c *gin.Context) {
 			break
 		}
 
-		slog.Debug("WebSocket message received", "session_id", sessionID, "message", string(message))
+		// Validate message is valid JSON
+		var msg map[string]interface{}
+		if err := json.Unmarshal(message, &msg); err != nil {
+			slog.Warn("Invalid WebSocket message format", "session_id", sessionID, "error", err)
+			continue
+		}
+
+		slog.Debug("WebSocket message received", "session_id", sessionID, "length", len(message))
 		deps.WebSocketHub.Broadcast(sessionID, message)
 	}
 }

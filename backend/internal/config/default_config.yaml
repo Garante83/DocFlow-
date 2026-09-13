@@ -1,0 +1,93 @@
+# DocFlow - Default Konfiguration
+#
+# Diese Datei wurde beim ersten Start automatisch erstellt.
+# Alle Optionen koennen hier angepasst werden; der Server liest sie
+# bei jedem Start neu. Ausserdem gilt:
+#   - ENV-Variablen (Prefix DSCAN_) ueberschreiben diese Datei
+#   - CLI-Flags (--port, --host, ...) ueberschreiben ENV-Variablen
+
+server:
+  # HTTP(S) Port des Servers
+  # ENV: DSCAN_SERVER_PORT | Flag: --port
+  port: "8082"
+  # Bind-Adresse
+  # ENV: DSCAN_SERVER_HOST | Flag: --host
+  host: "0.0.0.0"
+  # TLS-Zertifikate. Leer = beim Start automatisch generiertes
+  # Self-Signed-Zertifikat verwenden.
+  # ENV: DSCAN_SERVER_TLS_CERT_PATH / DSCAN_SERVER_TLS_KEY_PATH
+  tls_cert_path: ""
+  tls_key_path: ""
+
+session:
+  # Lebensdauer einer Session
+  # ENV: DSCAN_SESSION_TIMEOUT
+  timeout: 1h
+  # Intervall des Cleanup-Jobs (loescht abgelaufene Sessions)
+  # ENV: DSCAN_SESSION_CLEANUP_INTERVAL
+  cleanup_interval: 5m
+  # Fehlversuche der PIN-Eingabe, bevor die Session gesperrt wird
+  # ENV: DSCAN_SESSION_MAX_FAILED_ATTEMPTS
+  max_failed_attempts: 3
+  # Dauer der Sperrung nach zu vielen Fehlversuchen
+  # ENV: DSCAN_SESSION_LOCKOUT_DURATION
+  lockout_duration: 5m
+
+upload:
+  # Maximale Dateigroesse pro Bild in MB
+  # ENV: DSCAN_UPLOAD_MAX_FILE_SIZE_MB
+  max_file_size_mb: 10
+  # Erlaubte Bildtypen (kommagetrennt)
+  # ENV: DSCAN_UPLOAD_ALLOWED_TYPES
+  allowed_types:
+    - "image/jpeg"
+    - "image/png"
+    - "image/webp"
+
+pdf:
+  # Maximale Anzahl an Seiten pro Dokument
+  # ENV: DSCAN_PDF_MAX_PAGES
+  max_pages: 20
+  # JPEG-Qualitaet fuer die Seitenkomprimierung (1-100)
+  # ENV: DSCAN_PDF_JPEG_QUALITY
+  jpeg_quality: 85
+  # JPEG-Komprimierung aktiv
+  # ENV: DSCAN_PDF_COMPRESS_OUTPUT
+  compress_output: true
+
+websocket:
+  # Lese-Deadline fuer WebSocket-Verbindungen
+  # ENV: DSCAN_WEB_SOCKET_READ_DEADLINE
+  read_deadline: 60s
+  # Intervall der Ping-Nachrichten
+  # ENV: DSCAN_WEB_SOCKET_PING_INTERVAL
+  ping_interval: 30s
+  # Erlaubte Origins fuer WebSocket-Verbindungen (kommagetrennt)
+  # ENV: DSCAN_WEB_SOCKET_ALLOWED_ORIGINS | Flag: --ws-origins
+  allowed_origins:
+    - "https://localhost:8082"
+    - "http://localhost:8082"
+    - "https://127.0.0.1:8082"
+    - "http://127.0.0.1:8082"
+  # Verbindungen aus privaten Netzen erlauben (LAN-Nutzung)
+  # ENV: DSCAN_WEB_SOCKET_ALLOW_PRIVATE_IPS | Flag: --ws-allow-private-ips
+  allow_private_ips: true
+
+logging:
+  # Log-Level: debug, info, warn, error
+  # ENV: DSCAN_LOGGING_LEVEL
+  level: "info"
+  # Log-Format: json oder text
+  # ENV: DSCAN_LOGGING_FORMAT
+  format: "json"
+
+rate_limit:
+  # Rate-Limiting aktiv (API-Endpunkte)
+  # ENV: DSCAN_RATE_LIMIT_ENABLED
+  enabled: true
+  # Maximale Requests pro Fenster
+  # ENV: DSCAN_RATE_LIMIT_MAX_REQUESTS
+  max_requests: 100
+  # Fenstergroesse in Sekunden
+  # ENV: DSCAN_RATE_LIMIT_WINDOW_SECONDS
+  window_seconds: 60

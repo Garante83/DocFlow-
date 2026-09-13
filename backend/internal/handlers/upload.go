@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 
-	"dokumentenscanner/internal/session"
+	"docflow/internal/session"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -46,7 +47,8 @@ func UploadHandler(c *gin.Context) {
 	// Get the file from the request
 	file, header, err := c.Request.FormFile(formFieldName)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid file upload: " + err.Error()})
+		slog.Warn("Invalid file upload", "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid file upload"})
 		return
 	}
 	defer file.Close()
@@ -77,10 +79,17 @@ func UploadHandler(c *gin.Context) {
 		return
 	}
 
-	// Read the file into a byte slice
+	// Read the file into a byte slice (with size limit to prevent DoS)
 	buf := bytes.NewBuffer(nil)
-	if _, err := io.Copy(buf, file); err != nil {
+	limitedReader := io.LimitReader(file, int64(maxFileSize)+1)
+	if _, err := io.Copy(buf, limitedReader); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read file"})
+		return
+	}
+	if buf.Len() > maxFileSize {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("file size exceeds maximum of %dMB", maxFileSizeMB),
+		})
 		return
 	}
 

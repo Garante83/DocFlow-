@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -90,4 +91,18 @@ func (s *Store) Update(session *Session) {
 	defer s.mu.Unlock()
 
 	s.sessions[session.ID] = session
+}
+
+// UpdateFunc applies a function to a session under the lock.
+// This prevents TOCTOU race conditions by ensuring atomic read-modify-write.
+func (s *Store) UpdateFunc(id uuid.UUID, fn func(*Session) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	session, exists := s.sessions[id]
+	if !exists {
+		return fmt.Errorf("session not found")
+	}
+
+	return fn(session)
 }

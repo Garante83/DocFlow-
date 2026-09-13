@@ -1,4 +1,4 @@
-# Dokumentenscanner - Standard Konfiguration
+# DocFlow - Standard Konfiguration
 # Diese Datei enthält die Default-Werte für alle Umgebungen
 
 server:
@@ -20,14 +20,26 @@ upload:
     - "image/png"
     - "image/webp"
 
+pdf:
+  max_pages: 20
+  jpeg_quality: 85
+  compress_output: true
+
 websocket:
   read_deadline: 60s
   ping_interval: 30s
   allowed_origins:
-    - "localhost:8082"
-    - "127.0.0.1:8082"
+    - "https://localhost:8082"
+    - "http://localhost:8082"
+    - "https://127.0.0.1:8082"
+    - "http://127.0.0.1:8082"
   allow_private_ips: true
 
 logging:
   level: "info"
   format: "json"
+
+rate_limit:
+  enabled: true
+  max_requests: 100
+  window_seconds: 60

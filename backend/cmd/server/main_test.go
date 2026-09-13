@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"dokumentenscanner/internal/config"
-	"dokumentenscanner/internal/handlers"
-	"dokumentenscanner/internal/session"
-	ws "dokumentenscanner/internal/websocket"
+	"docflow/internal/config"
+	"docflow/internal/handlers"
+	"docflow/internal/session"
+	ws "docflow/internal/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,14 +46,16 @@ func TestGetPort(t *testing.T) {
 // === readEmbeddedFile Tests ===
 
 func TestReadEmbeddedFile_IndexHTML(t *testing.T) {
-	data := readEmbeddedFile("index.html")
+	data, err := readEmbeddedFile("index.html")
+	require.NoError(t, err)
 	require.NotEmpty(t, data)
 	assert.Contains(t, string(data), "<!DOCTYPE html>")
 }
 
 func TestReadEmbeddedFile_CSS(t *testing.T) {
 	// Find a CSS file in the embedded assets
-	data := readEmbeddedFile("index.html")
+	data, err := readEmbeddedFile("index.html")
+	require.NoError(t, err)
 	require.NotEmpty(t, data)
 
 	// Read an asset file by looking at what's embedded
@@ -64,7 +66,8 @@ func TestReadEmbeddedFile_CSS(t *testing.T) {
 	}
 	for _, entry := range entries {
 		if strings.HasSuffix(entry.Name(), ".css") {
-			cssData := readEmbeddedFile("assets/" + entry.Name())
+			cssData, err := readEmbeddedFile("assets/" + entry.Name())
+			assert.NoError(t, err)
 			assert.NotEmpty(t, cssData)
 			return
 		}
@@ -79,7 +82,8 @@ func TestReadEmbeddedFile_JavaScript(t *testing.T) {
 	}
 	for _, entry := range entries {
 		if strings.HasSuffix(entry.Name(), ".js") {
-			jsData := readEmbeddedFile("assets/" + entry.Name())
+			jsData, err := readEmbeddedFile("assets/" + entry.Name())
+			assert.NoError(t, err)
 			assert.NotEmpty(t, jsData)
 			return
 		}
@@ -88,12 +92,14 @@ func TestReadEmbeddedFile_JavaScript(t *testing.T) {
 }
 
 func TestReadEmbeddedFile_Favicon(t *testing.T) {
-	data := readEmbeddedFile("favicon.ico")
+	data, err := readEmbeddedFile("favicon.ico")
+	require.NoError(t, err)
 	require.NotEmpty(t, data)
 }
 
 func TestReadEmbeddedFile_FaviconSVG(t *testing.T) {
-	data := readEmbeddedFile("favicon.svg")
+	data, err := readEmbeddedFile("favicon.svg")
+	require.NoError(t, err)
 	require.NotEmpty(t, data)
 	assert.Contains(t, string(data), "svg")
 }
@@ -146,6 +152,23 @@ func TestSetupLogger_InvalidLevel(t *testing.T) {
 	// Should default to info, not panic
 	setupLogger(cfg)
 	slog.Info("should use default info level")
+}
+
+func TestSetupLogger_TextFormat(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Logging.Format = "text"
+
+	setupLogger(cfg)
+	slog.Info("text format message")
+}
+
+func TestSetupLogger_UnknownFormatFallsBackToJSON(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Logging.Format = "xml"
+
+	// Should warn and fall back to json, not panic
+	setupLogger(cfg)
+	slog.Info("fallback json message")
 }
 
 // === writeTempFile Tests ===
@@ -203,7 +226,7 @@ func setupTestRouter(t testing.TB) *gin.Engine {
 	cfg := config.DefaultConfig()
 	handlers.Init(store, hub, cfg)
 
-	return setupRouter()
+	return setupRouter(cfg)
 }
 
 func TestRootHandler(t *testing.T) {
@@ -312,7 +335,7 @@ func TestGracefulShutdown(t *testing.T) {
 	cfg := config.DefaultConfig()
 	handlers.Init(store, hub, cfg)
 
-	r := setupRouter()
+	r := setupRouter(cfg)
 
 	srv := &http.Server{
 		Addr:    ":0", // random port

@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"dokumentenscanner/internal/config"
-	"dokumentenscanner/internal/session"
-	ws "dokumentenscanner/internal/websocket"
+	"docflow/internal/config"
+	"docflow/internal/session"
+	ws "docflow/internal/websocket"
 	"github.com/gin-gonic/gin"
 	gws "github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"

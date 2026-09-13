@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -25,6 +26,9 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestLoadConfig_WithoutFile(t *testing.T) {
+	// Temp-Verzeichnis: verhindert, dass der Auto-Create in den Source-Tree schreibt
+	t.Chdir(t.TempDir())
+
 	// Test ohne Config-Datei (sollte Defaults nutzen)
 	cfg, err := LoadConfig("")
 	require.NoError(t, err)
@@ -33,6 +37,8 @@ func TestLoadConfig_WithoutFile(t *testing.T) {
 }
 
 func TestLoadConfig_WithEnvVars(t *testing.T) {
+	t.Chdir(t.TempDir())
+
 	// Speichere aktuelle Umgebungsvariable und setze zurueck
 	oldPort := os.Getenv("DSCAN_SERVER_PORT")
 	defer func() {
@@ -147,6 +153,8 @@ func TestValidateConfig_AllFields(t *testing.T) {
 }
 
 func TestLoadConfig_WithAllEnvVars(t *testing.T) {
+	t.Chdir(t.TempDir())
+
 	// Save old env vars
 	oldPort := os.Getenv("DSCAN_SERVER_PORT")
 	oldHost := os.Getenv("DSCAN_SERVER_HOST")
@@ -188,6 +196,8 @@ func TestLoadConfig_WithAllEnvVars(t *testing.T) {
 }
 
 func TestLoadConfig_WithCLIFlags(t *testing.T) {
+	t.Chdir(t.TempDir())
+
 	// Note: CLI flags need special handling as flag.Parse() is called in LoadConfig
 	// For now, we just test that LoadConfig doesn't break without flags
 	cfg, err := LoadConfig("")
@@ -241,13 +251,13 @@ func TestParseFlags(t *testing.T) {
 	v.Set("server.port", "8082")
 	v.Set("server.host", "0.0.0.0")
 
-	// Call parseFlags - this should not panic
+	// Call registerFlags - this should not panic
 	// Note: This function is designed to work with flag.Parse()
 	// which we can't easily test in unit tests
-	parseFlags(v)
+	registerFlags(v)
 
 	// Verify it doesn't crash
-	assert.True(t, true, "parseFlags should complete without panic")
+	assert.True(t, true, "registerFlags should complete without panic")
 }
 
 func TestConfigMerging(t *testing.T) {
@@ -264,4 +274,85 @@ func TestConfigMerging(t *testing.T) {
 
 	// This test verifies the config structure is correct
 	// Full merging tests would require more complex setup
+}
+
+func TestPreScanConfigPath(t *testing.T) {
+	assert.Empty(t, preScanConfigPath([]string{}))
+	assert.Empty(t, preScanConfigPath([]string{"--port", "9090"}))
+	assert.Empty(t, preScanConfigPath([]string{"--config"}))
+	assert.Equal(t, "/tmp/c.yaml", preScanConfigPath([]string{"--config", "/tmp/c.yaml"}))
+	assert.Equal(t, "/tmp/c.yaml", preScanConfigPath([]string{"--config=/tmp/c.yaml"}))
+	assert.Equal(t, "/tmp/c.yaml", preScanConfigPath([]string{"-config=/tmp/c.yaml"}))
+	assert.Equal(t, "/tmp/c.yaml", preScanConfigPath([]string{"-config", "/tmp/c.yaml", "--port", "1"}))
+}
+
+func TestWriteDefaultConfig(t *testing.T) {
+	dir := t.TempDir()
+	oldCandidates := writeDefaultConfigCandidates
+	writeDefaultConfigCandidates = []string{filepath.Join(dir, "custom.yaml")}
+	defer func() { writeDefaultConfigCandidates = oldCandidates }()
+
+	writeDefaultConfig()
+
+	data, err := os.ReadFile(filepath.Join(dir, "custom.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "server:")
+	assert.Contains(t, string(data), "rate_limit:")
+	assert.Contains(t, string(data), "DSCAN_SERVER_PORT")
+}
+
+func TestLoadConfig_FirstStartCreatesConfig(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	cfg, err := LoadConfig("")
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	data, err := os.ReadFile("config.yaml")
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "DocFlow")
+	assert.Contains(t, string(data), "server:")
+}
+
+func TestLoadConfig_WithExplicitConfigFile(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	// Nicht existierende Datei -> klarer Fehler
+	_, err := LoadConfig(filepath.Join(t.TempDir(), "missing.yaml"))
+	require.Error(t, err)
+
+	// Gueltige Datei -> Werte uebernommen
+	path := filepath.Join(t.TempDir(), "custom.yaml")
+	err = os.WriteFile(path, []byte("server:\n  port: \"7777\"\n"), 0o644)
+	require.NoError(t, err)
+
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+	assert.Equal(t, "7777", cfg.Server.Port)
+}
+
+func TestLoadConfig_WithNewEnvBindings(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	t.Setenv("DSCAN_UPLOAD_ALLOWED_TYPES", "image/jpeg,image/png")
+	t.Setenv("DSCAN_PDF_MAX_PAGES", "30")
+	t.Setenv("DSCAN_PDF_JPEG_QUALITY", "95")
+	t.Setenv("DSCAN_PDF_COMPRESS_OUTPUT", "false")
+	t.Setenv("DSCAN_RATE_LIMIT_ENABLED", "false")
+	t.Setenv("DSCAN_RATE_LIMIT_MAX_REQUESTS", "500")
+	t.Setenv("DSCAN_RATE_LIMIT_WINDOW_SECONDS", "30")
+	t.Setenv("DSCAN_WEB_SOCKET_ALLOWED_ORIGINS", "https://a.example,https://b.example")
+
+	cfg, err := LoadConfig("")
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"image/jpeg", "image/png"}, cfg.Upload.AllowedTypes)
+	assert.Equal(t, 30, cfg.PDF.MaxPages)
+	assert.Equal(t, 95, cfg.PDF.JPEGQuality)
+	assert.False(t, cfg.PDF.CompressOutput)
+	assert.False(t, cfg.RateLimit.Enabled)
+	assert.Equal(t, 500, cfg.RateLimit.MaxRequests)
+	assert.Equal(t, 30, cfg.RateLimit.WindowSeconds)
+	assert.Equal(t, []string{"https://a.example", "https://b.example"}, cfg.WebSocket.AllowedOrigins)
 }

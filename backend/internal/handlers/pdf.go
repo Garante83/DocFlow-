@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 
-	"dokumentenscanner/internal/session"
-	"dokumentenscanner/pkg/utils"
+	"docflow/internal/session"
+	"docflow/pkg/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -53,7 +54,8 @@ func PDFHandler(c *gin.Context) {
 	// Fallback: generate PDF on the fly (backward compatibility)
 	pdfBytes, err := utils.GeneratePDF(sess.Images[0])
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.Error("Failed to generate PDF", "session_id", sessionID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate PDF"})
 		return
 	}
 
@@ -75,6 +77,7 @@ func PDFHandler(c *gin.Context) {
 
 	// Mark session as downloaded — cleanup goroutine will delete it
 	sess.Status = session.StatusDownloaded
-	sess.PDF = nil // Free memory
+	sess.PDF = nil    // Free PDF memory
+	sess.Images = nil // Free images memory
 	deps.SessionStore.Update(sess)
 }

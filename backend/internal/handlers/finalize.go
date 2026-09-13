@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 
-	"dokumentenscanner/internal/session"
-	"dokumentenscanner/pkg/utils"
+	"docflow/internal/session"
+	"docflow/pkg/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -48,7 +49,8 @@ func FinalizeHandler(c *gin.Context) {
 	// Generate multi-page PDF
 	pdfBytes, err := utils.GenerateMultiPagePDF(sess.Images, jpegQuality)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to generate PDF: %v", err)})
+		slog.Error("Failed to generate PDF", "session_id", sessionID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate PDF"})
 		return
 	}
 

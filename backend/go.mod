@@ -1,4 +1,4 @@
-module dokumentenscanner
+module docflow
 
 go 1.26.5
 

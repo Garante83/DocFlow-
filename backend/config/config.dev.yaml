@@ -1,4 +1,4 @@
-# Dokumentenscanner - Entwicklungskonfiguration
+# DocFlow - Entwicklungskonfiguration
 # Erbt von config.default.yaml und überschreibt Entwicklungsspezifische Werte
 
 server:
@@ -21,18 +21,32 @@ upload:
     - "image/webp"
     - "image/gif"
 
+pdf:
+  max_pages: 30
+  jpeg_quality: 90
+  compress_output: true
+
 websocket:
   read_deadline: 120s
   ping_interval: 60s
   allowed_origins:
-    - "localhost:8082"
-    - "127.0.0.1:8082"
-    - "localhost:3000"
-    - "127.0.0.1:3000"
-    - "0.0.0.0:8082"
-    - "0.0.0.0:3000"
+    - "https://localhost:8082"
+    - "http://localhost:8082"
+    - "https://127.0.0.1:8082"
+    - "http://127.0.0.1:8082"
+    - "https://localhost:3000"
+    - "http://localhost:3000"
+    - "https://127.0.0.1:3000"
+    - "http://127.0.0.1:3000"
+    - "http://0.0.0.0:8082"
+    - "http://0.0.0.0:3000"
   allow_private_ips: true
 
 logging:
   level: "debug"
   format: "text"
+
+rate_limit:
+  enabled: true
+  max_requests: 1000
+  window_seconds: 60

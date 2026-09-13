@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"dokumentenscanner/internal/config"
-	"dokumentenscanner/internal/session"
-	ws "dokumentenscanner/internal/websocket"
+	"docflow/internal/config"
+	"docflow/internal/session"
+	ws "docflow/internal/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

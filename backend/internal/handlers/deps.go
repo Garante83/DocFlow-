@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"dokumentenscanner/internal/config"
-	"dokumentenscanner/internal/session"
-	"dokumentenscanner/internal/websocket"
+	"docflow/internal/config"
+	"docflow/internal/session"
+	"docflow/internal/websocket"
 )
 
 // HandlerDeps enthaelt alle Abhaengigkeiten fur die Handler

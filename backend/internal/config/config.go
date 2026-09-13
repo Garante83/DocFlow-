@@ -1,17 +1,23 @@
 package config
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/viper"
 )
+
+//go:embed default_config.yaml
+var defaultConfigYAML string
 
 // Config enthaelt alle Anwendungskonfigurationen
 type Config struct {
@@ -51,6 +57,12 @@ type Config struct {
 		Level  string `mapstructure:"level" json:"level"`   // debug, info, warn, error
 		Format string `mapstructure:"format" json:"format"` // json, text
 	} `mapstructure:"logging" json:"logging"`
+
+	RateLimit struct {
+		Enabled       bool `mapstructure:"enabled" json:"enabled"`
+		MaxRequests   int  `mapstructure:"max_requests" json:"max_requests"`     // pro Fenster
+		WindowSeconds int  `mapstructure:"window_seconds" json:"window_seconds"` // Fenster in Sekunden
+	} `mapstructure:"rate_limit" json:"rate_limit"`
 }
 
 // DefaultConfig gibt Standardwerte zuruck
@@ -88,11 +100,22 @@ func DefaultConfig() *Config {
 	cfg.Logging.Level = "info"
 	cfg.Logging.Format = "json"
 
+	// Rate Limiting
+	cfg.RateLimit.Enabled = true
+	cfg.RateLimit.MaxRequests = 100
+	cfg.RateLimit.WindowSeconds = 60
+
 	return cfg
 }
 
 // LoadConfig laedt die Konfiguration aus verschiedenen Quellen
 func LoadConfig(configPath string) (*Config, error) {
+	// 0. Pre-Scan: --config Flag aus os.Args lesen, bevor irgendetwas anderes
+	// passiert (die restlichen Flags brauchen Viper-Defaults als DefValue)
+	if configPath == "" {
+		configPath = preScanConfigPath(os.Args[1:])
+	}
+
 	// 1. Erstelle Viper Instanz
 	v := viper.New()
 	v.SetConfigName("config") // Name der Config-Datei (ohne Endung)
@@ -101,28 +124,41 @@ func LoadConfig(configPath string) (*Config, error) {
 	v.SetEnvPrefix("DSCAN")   // Praefix fuer Umgebungsvariablen (z.B. DSCAN_SERVER_PORT)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	// 2. Fuege Suchpfade hinzu
+	// 2. Suchpfade oder explizite Datei
+	explicitFile := false
 	if configPath != "" {
-		v.AddConfigPath(configPath)
+		v.SetConfigFile(configPath)
+		explicitFile = true
+	} else {
+		// Standardpfade
+		v.AddConfigPath(".")
+		v.AddConfigPath("./config")
+		v.AddConfigPath("/etc/docflow")
 	}
-	// Standardpfade
-	v.AddConfigPath(".")
-	v.AddConfigPath("./config")
-	v.AddConfigPath("/etc/dokumentenscanner")
 
 	// 3. Lese Config-Datei (falls existiert)
 	if err := v.ReadInConfig(); err != nil {
-		// Ignoriere "Config File Not Found"-Error, wir verwenden Defaults
+		if explicitFile {
+			// Explizite Datei: Jeder Fehler ist fatal (auch nicht gefunden)
+			if isNotFoundError(err) {
+				return nil, fmt.Errorf("config file not found: %s", configPath)
+			}
+			return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
+		}
+		// Suchpfade: "Nicht gefunden" wird ignoriert und die Default-Config
+		// beim ersten Start an einen schreibbaren Ort geschrieben
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
+		writeDefaultConfig()
 	}
 
 	// 4. Parse CLI Flags (ueberschreibt Config-Datei)
 	// Nur wenn flag.Parsed() == false, d.h. flag.Parse() wurde noch nicht aufgerufen
 	if !flag.Parsed() {
-		parseFlags(v)
+		registerFlags(v)
 		flag.Parse()
+		applyFlagsToViper(v)
 	}
 
 	// 5. Binde Umgebungsvariablen explizit in Viper
@@ -147,10 +183,61 @@ func LoadConfig(configPath string) (*Config, error) {
 	return cfg, nil
 }
 
-// parseFlags registriert CLI-Flags und setzt sie in Viper
+// preScanConfigPath sucht --config in den Argumenten, bevor die eigentliche
+// Flag-Verarbeitung laeuft (diese braucht Viper-Defaults als Basis).
+// Unterstuetzt "--config pfad" und "--config=pfad" (auch einfach-Bindestrich).
+func preScanConfigPath(args []string) string {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "-config" || arg == "--config" {
+			if i+1 < len(args) {
+				return args[i+1]
+			}
+			return ""
+		}
+		if strings.HasPrefix(arg, "-config=") {
+			return strings.TrimPrefix(arg, "-config=")
+		}
+		if strings.HasPrefix(arg, "--config=") {
+			return strings.TrimPrefix(arg, "--config=")
+		}
+	}
+	return ""
+}
+
+// isNotFoundError prueft ob der Viper-Fehler auf eine fehlende Datei hinweist
+func isNotFoundError(err error) bool {
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		return os.IsNotExist(pathErr)
+	}
+	return false
+}
+
+// writeDefaultConfig schreibt die eingebettete Default-Config an den ersten
+// schreibbaren Kandidatenpfad. Fehler werden nur geloggt, der Start laeuft
+// mit Built-in-Defaults weiter (z.B. read-only Dateisysteme).
+var writeDefaultConfigCandidates = []string{"config.yaml", "config/config.yaml", "/etc/docflow/config.yaml"}
+
+func writeDefaultConfig() {
+	for _, path := range writeDefaultConfigCandidates {
+		dir := filepath.Dir(path)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			continue
+		}
+		if err := os.WriteFile(path, []byte(defaultConfigYAML), 0o644); err != nil {
+			continue
+		}
+		slog.Info("Wrote default config file", "path", path)
+		return
+	}
+	slog.Warn("No writable location for default config, using built-in defaults")
+}
+
+// registerFlags registriert CLI-Flags mit Viper-Defaults als DefValue.
 // ACHTUNG: flag.Parse() wird NICHT hier aufgerufen, da dies zu Konflikten
-// mit Test-Flags fuhren kann. Der Aufrufer muss flag.Parse() selbst aufrufen.
-func parseFlags(v *viper.Viper) {
+// mit Test-Flags fuehren kann. Der Aufrufer muss flag.Parse() selbst aufrufen.
+func registerFlags(v *viper.Viper) {
 	flag.String("port", v.GetString("server.port"), "Server port")
 	flag.String("host", v.GetString("server.host"), "Server host")
 	flag.String("config", "", "Path to config file")
@@ -158,8 +245,11 @@ func parseFlags(v *viper.Viper) {
 	// WebSocket spezifisch
 	flag.Bool("ws-allow-private-ips", v.GetBool("websocket.allow_private_ips"), "Allow connections from private IPs")
 	flag.String("ws-origins", strings.Join(v.GetStringSlice("websocket.allowed_origins"), ","), "Comma-separated allowed origins")
+}
 
-	// Setze Flag-Werte in Viper (nur wenn Flags gesetzt wurden)
+// applyFlagsToViper uebertraegt geparste Flag-Werte in Viper. Muss NACH
+// flag.Parse() laufen, da vorher Value == DefValue gilt.
+func applyFlagsToViper(v *viper.Viper) {
 	if f := flag.Lookup("port"); f != nil && f.Value.String() != f.DefValue {
 		v.Set("server.port", f.Value.String())
 	}
@@ -237,6 +327,24 @@ func bindEnvVars(v *viper.Viper) {
 			v.Set("upload.max_file_size_mb", i)
 		}
 	}
+	if allowedTypes := os.Getenv("DSCAN_UPLOAD_ALLOWED_TYPES"); allowedTypes != "" {
+		v.Set("upload.allowed_types", strings.Split(allowedTypes, ","))
+	}
+
+	// PDF
+	if maxPages := os.Getenv("DSCAN_PDF_MAX_PAGES"); maxPages != "" {
+		if i, err := strconv.Atoi(maxPages); err == nil {
+			v.Set("pdf.max_pages", i)
+		}
+	}
+	if quality := os.Getenv("DSCAN_PDF_JPEG_QUALITY"); quality != "" {
+		if i, err := strconv.Atoi(quality); err == nil {
+			v.Set("pdf.jpeg_quality", i)
+		}
+	}
+	if compress := os.Getenv("DSCAN_PDF_COMPRESS_OUTPUT"); compress != "" {
+		v.Set("pdf.compress_output", compress == "true")
+	}
 
 	// WebSocket
 	if readDeadline := os.Getenv("DSCAN_WEB_SOCKET_READ_DEADLINE"); readDeadline != "" {
@@ -252,6 +360,9 @@ func bindEnvVars(v *viper.Viper) {
 	if allowPrivateIPs := os.Getenv("DSCAN_WEB_SOCKET_ALLOW_PRIVATE_IPS"); allowPrivateIPs != "" {
 		v.Set("websocket.allow_private_ips", allowPrivateIPs == "true")
 	}
+	if origins := os.Getenv("DSCAN_WEB_SOCKET_ALLOWED_ORIGINS"); origins != "" {
+		v.Set("websocket.allowed_origins", strings.Split(origins, ","))
+	}
 
 	// Logging
 	if level := os.Getenv("DSCAN_LOGGING_LEVEL"); level != "" {
@@ -259,6 +370,21 @@ func bindEnvVars(v *viper.Viper) {
 	}
 	if format := os.Getenv("DSCAN_LOGGING_FORMAT"); format != "" {
 		v.Set("logging.format", format)
+	}
+
+	// Rate Limiting
+	if enabled := os.Getenv("DSCAN_RATE_LIMIT_ENABLED"); enabled != "" {
+		v.Set("rate_limit.enabled", enabled == "true")
+	}
+	if maxRequests := os.Getenv("DSCAN_RATE_LIMIT_MAX_REQUESTS"); maxRequests != "" {
+		if i, err := strconv.Atoi(maxRequests); err == nil {
+			v.Set("rate_limit.max_requests", i)
+		}
+	}
+	if windowSeconds := os.Getenv("DSCAN_RATE_LIMIT_WINDOW_SECONDS"); windowSeconds != "" {
+		if i, err := strconv.Atoi(windowSeconds); err == nil {
+			v.Set("rate_limit.window_seconds", i)
+		}
 	}
 }
 

@@ -35,7 +35,7 @@ func NewHub() *Hub {
 	return &Hub{
 		clients:    make(map[uuid.UUID]map[*Client]bool),
 		register:   make(chan *Client),
-		unregister: make(chan *Client),
+		unregister: make(chan *Client, 100), // Buffered to prevent deadlocks
 		broadcast:  make(chan *Message),
 		stopChan:   make(chan struct{}),
 	}
@@ -85,14 +85,19 @@ func (h *Hub) unregisterClient(client *Client) {
 func (h *Hub) broadcastMessage(message *Message) {
 	h.mu.Lock()
 	clients, exists := h.clients[message.sessionID]
-	h.mu.Unlock()
-
 	if !exists {
+		h.mu.Unlock()
 		return
 	}
+	// Take a snapshot of clients under the lock to avoid concurrent map iteration
+	snapshot := make([]*Client, 0, len(clients))
+	for client := range clients {
+		snapshot = append(snapshot, client)
+	}
+	h.mu.Unlock()
 
 	var failed []*Client
-	for client := range clients {
+	for _, client := range snapshot {
 		if err := client.Conn.WriteMessage(websocket.TextMessage, message.data); err != nil {
 			failed = append(failed, client)
 		}
