@@ -1,4 +1,4 @@
-# Dokumentenscanner – Projekt-Dokumentation
+# DocFlow - Projekt-Dokumentation
 
 *Zentrale Dokumentation für Architektur, Entwicklung und Betrieb. Stand: 2026-07-25*
 
@@ -6,7 +6,7 @@
 
 ## 1. Überblick
 
-### Was ist der Dokumentenscanner?
+### Was ist DocFlow?
 
 Eine Web-Anwendung zum Übertragen von Dokumenten zwischen **Desktop** und **Mobilgerät** über das lokale Netzwerk — ohne Cloud, ohne E-Mail.
 
@@ -83,9 +83,8 @@ graph TD
 ### Verzeichnisstruktur
 
 ```
-NeuDocumentenScaner/
+DocFlow/
 ├── backend/
-│   ├── cmd/server/
 │   │   ├── main.go              # Server-Start, Graceful Shutdown, Router
 │   │   ├── cert.pem / key.pem   # TLS (embedded)
 │   │   ├── index.html + assets/ # Frontend SPA (embedded)
@@ -390,6 +389,9 @@ graph TD
     pdf --> jpeg_quality["JPEGQuality: int"]
     websocket --> allow_private_ips["AllowPrivateIPs: bool"]
     logging --> level["Level: string"]
+    rate_limit --> enabled["Enabled: bool"]
+    rate_limit --> max_requests["MaxRequests: int"]
+    rate_limit --> window_seconds["WindowSeconds: int"]
 ```
 
 ### Config-Dateien

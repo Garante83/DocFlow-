@@ -4,7 +4,7 @@
 
 ## Verantwortlicher
 
-Das Dokumentenscanner-Projekt ist eine Open-Source-Software. Für den Betrieb ist der Einrichtungsverantwortliche zuständig.
+Das DocFlow-Projekt ist eine Open-Source-Software. Für den Betrieb ist der Einrichtungsverantwortliche zuständig.
 
 ## Verarbeitete Daten
 
@@ -25,15 +25,20 @@ Die Anwendung verarbeitet **Dokumentenbilder** und **PDFs**, die vom Nutzer hoch
 
 ## Kein Logging von Dokumenteninhalten
 
-Es werden **keine Inhalte von Dokumenten geloggt**. Nur Session-Metadaten (Session-ID, Status, Zeitstempel) werden für Debugging-Zwecke protokolliert.
+Es werden **keine Inhalte von Dokumenten geloggt**. Nur Session-Metadaten (Session-ID, Status, Zeitstempel) werden für Debugging-Zwecke protokolliert. **IP-Adressen** werden im Rahmen der HTTP-Logs für technische Zwecke erfasst, aber nicht dauerhaft gespeichert.
 
 ## Keine Weitergabe an Dritte
 
-Es findet **keine Weitergabe** von Daten an Dritte, keine Analyse und kein Tracking statt.
+Es findet **keine Weitergabe** von Daten an Dritte, keine Analyse und kein Tracking statt. Die Anwendung lädt keine externen Ressourcen (Fonts, Skripte etc.) von Drittanbietern.
 
 ## Verschlüsselung
 
 Die gesamte Kommunikation erfolgt über **HTTPS/TLS-verschluesselte Verbindungen**. Bilder und PDFs werden nur verschluesselt uebertragen.
+
+## Technische Details
+
+- **PIN-Speicherung**: Die 6-stellige PIN wird ausschließlich im RAM gespeichert und nicht auf Festplatten geschrieben.
+- **Rate-Limiting**: Zur Missbrauchsbekämpfung wird eine IP-basierte Anfragenbegrenzung eingesetzt.
 
 ## Rechte des Betroffenen
 

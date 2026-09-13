@@ -1,154 +1,204 @@
-# NDscaner – Dokumentenscanner
+# DocFlow - Document Scanner
 
-Web-basierter Dokumentenscanner: Desktop zeigt QR-Code, Handy scannt und lädt Bilder hoch, Desktop generiert PDF.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go&logoColor=white)](https://golang.org)
+[![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D?style=flat&logo=vuedotjs&logoColor=white)](https://vuejs.org)
 
-## Stack
+Web-based document scanner: Desktop shows QR code, phone scans and uploads images, desktop generates PDF.
 
-- **Backend**: Go + Gin, WebSocket, PDF-Generierung (gofpdf)
-- **Frontend**: Vue 3 + Vite + Pinia, Hash-Routing
-- **TLS**: Selbstsigniertes Zertifikat (im Binary eingebettet)
+## Features
+
+- **Session Management** - Temporary sessions with 6-digit PIN and 1h timeout
+- **QR Code Connection** - Automatic LAN IP detection for easy connection
+- **Multi-Page Upload** - Multiple photos per session, editable (rotate, crop)
+- **PDF Conversion** - Server-side multi-page PDF with JPEG compression (85%)
+- **WebSocket Communication** - Real-time updates between desktop and mobile
+- **Burn-after-Reading** - Session is deleted after PDF download
+- **HTTPS** - Self-signed TLS certificate (embedded in binary)
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Backend | Go 1.21+ / Gin / gorilla/websocket / go-pdf/fpdf |
+| Frontend | Vue 3 / Vite / Pinia / Axios / Vitest |
+| Configuration | Viper (YAML + ENV + CLI Flags) |
+| Logging | log/slog (JSON, stdlib) |
 
 ## Quick Start
 
 ```bash
+# Backend
 cd backend
+make deps        # Download dependencies
+make build       # Build binary
+make run         # Start HTTPS server on port 8082
 
-# Dependencies
-make deps
-
-# Build
-make all
-
-# Run
-make run
+# Frontend (development)
+cd frontend/dokumentenscanner
+npm install
+npm run dev      # Dev server with hot reload
 ```
 
 Server: `https://localhost:8082`
 
 ## Build & Deploy
 
+### Single Binary (recommended)
+
+```bash
+# From project root: builds frontend, embeds it, compiles everything
+make release
+
+# Start server
+cd backend && ./docflow
+```
+
+The binary embeds the complete frontend (Vue SPA) and serves it on
+`https://localhost:8082`. TLS certificates are auto-generated at runtime
+(or configured via `tls_cert_path`/`tls_key_path`).
+
+Cross-compile for Linux:
+
+```bash
+make release-linux   # -> backend/docflow-linux-amd64
+```
+
+### Manual build
+
+> **Note:** `main.go` embeds the frontend via `//go:embed`. A fresh checkout
+> has no embedded assets - run `make frontend-build` (Node >= 22) once before
+> plain `go build`/`go test` in `backend/`, or just use `make release`.
+
 ```bash
 cd backend
 
-# Frontend bauen + einbetten
+# Build frontend + embed
 make frontend-build
 
-# Alles kompilieren
+# Compile everything
 make all
 
-# Server starten
+# Start server
 ./server
 ```
 
-## API
+### Deployment (single binary)
 
-| Methode | Endpoint | Beschreibung |
-|---------|----------|-------------|
-| POST | `/api/session` | Session erstellen |
-| GET | `/api/session/{id}/qrcode` | QR-Code als PNG |
-| POST | `/api/session/{id}/verify-pin` | PIN verifizieren |
-| POST | `/api/session/{id}/upload` | Bild hochladen |
-| GET | `/api/session/{id}/pdf` | PDF herunterladen |
-| DELETE | `/api/session/{id}` | Session löschen |
-| GET | `/ws/session/{id}` | WebSocket-Verbindung |
+1. Copy `docflow` (or build/download it) to the target machine
+2. Start it: `./docflow` - a commented `config.yaml` is auto-created on first start
+3. Edit `config.yaml` (or use `DSCAN_*` env vars / CLI flags), restart
+4. Open `https://<host>:8082`, accept the self-signed certificate warning
 
-## Konfiguration
+See [map.md](map.md) for the architecture overview and
+[docs/](docs/) for the user manual.
 
-Der Dokumentenscanner verwendet **Viper** für zentrales Konfigurationsmanagement mit den folgenden Quellen (in Prioritätsreihenfolge):
-1. **CLI-Flags** (z.B. `--port`, `--host`)
-2. **Umgebungsvariablen** (Praefix: `DSCAN_`)
-3. **Config-Dateien** (YAML)
-4. **Default-Werte** (hardcodet)
+## API Reference
 
----
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/session` | Create session |
+| POST | `/api/session/{id}/verify-pin` | Verify PIN |
+| GET | `/api/session/{id}/qrcode` | Get QR code as PNG |
+| POST | `/api/session/{id}/upload` | Upload image |
+| POST | `/api/session/{id}/finalize` | Generate PDF |
+| GET | `/api/session/{id}/pdf` | Download PDF |
+| DELETE | `/api/session/{id}` | Delete session |
+| GET | `/ws/session/{id}` | WebSocket connection |
 
-### Umgebungsvariablen
+## Configuration
 
-Alle Konfigurationsoptionen können über Umgebungsvariablen mit dem Praefix `DSCAN_` gesetzt werden:
+DocFlow uses **Viper** for centralized configuration management with the following sources (in priority order):
+1. **CLI Flags** (e.g., `--port`, `--host`, `--config`)
+2. **Environment Variables** (prefix: `DSCAN_`)
+3. **Config Files** (YAML, searched in `./`, `./config/`, `/etc/docflow/`)
+4. **Default Values** (hardcoded)
 
-| Umgebungsvariable | Config-Pfad | Standardwert | Beschreibung |
-|-------------------|-------------|--------------|--------------|
-| `DSCAN_SERVER_PORT` | `server.port` | `8082` | Server-Port |
-| `DSCAN_SERVER_HOST` | `server.host` | `0.0.0.0` | Server-Host |
-| `DSCAN_SERVER_TLS_CERT_PATH` | `server.tls_cert_path` | `` | Pfad zum TLS-Zertifikat |
-| `DSCAN_SERVER_TLS_KEY_PATH` | `server.tls_key_path` | `` | Pfad zum TLS-Private-Key |
-| `DSCAN_SESSION_TIMEOUT` | `session.timeout` | `1h` | Session-Lebensdauer |
-| `DSCAN_SESSION_CLEANUP_INTERVAL` | `session.cleanup_interval` | `5m` | Intervall für Session-Bereinigung |
-| `DSCAN_SESSION_MAX_FAILED_ATTEMPTS` | `session.max_failed_attempts` | `3` | Max. PIN-Fehlversuche |
-| `DSCAN_SESSION_LOCKOUT_DURATION` | `session.lockout_duration` | `5m` | Sperrdauer nach Lockout |
-| `DSCAN_UPLOAD_MAX_FILE_SIZE_MB` | `upload.max_file_size_mb` | `10` | Max. Dateigröße in MB |
-| `DSCAN_UPLOAD_ALLOWED_TYPES` | `upload.allowed_types` | `image/jpeg,image/png,image/webp` | Erlaubte MIME-Typen (kommagetrennt) |
-| `DSCAN_WEB_SOCKET_READ_DEADLINE` | `websocket.read_deadline` | `60s` | WebSocket Read-Timeout |
-| `DSCAN_WEB_SOCKET_PING_INTERVAL` | `websocket.ping_interval` | `30s` | WebSocket Ping-Intervall |
-| `DSCAN_WEB_SOCKET_ALLOWED_ORIGINS` | `websocket.allowed_origins` | `localhost:8082,127.0.0.1:8082` | Erlaubte Origins (kommagetrennt) |
-| `DSCAN_WEB_SOCKET_ALLOW_PRIVATE_IPS` | `websocket.allow_private_ips` | `true` | Private IPs erlauben |
-| `DSCAN_LOGGING_LEVEL` | `logging.level` | `info` | Log-Level (debug, info, warn, error) |
-| `DSCAN_LOGGING_FORMAT` | `logging.format` | `json` | Log-Format (json, text) |
+### First Start
 
----
+When no config file is found, the binary **automatically writes a fully
+commented `config.yaml`** to the first writable location (`./config.yaml`,
+then `./config/config.yaml`, then `/etc/docflow/config.yaml`). Edit it and
+restart - no config file is ever overwritten once it exists. On read-only
+filesystems the server continues with built-in defaults.
 
-### Config-Dateien
+### CLI Flags
 
-Vordefinierte Config-Dateien im Verzeichnis `backend/config/`:
+| Flag | Description |
+|------|-------------|
+| `--port` | Server port |
+| `--host` | Server host |
+| `--config <path>` | Path to a config file (missing/invalid file = startup error) |
+| `--ws-origins` | Comma-separated allowed WebSocket origins |
+| `--ws-allow-private-ips` | Allow WebSocket connections from private IPs |
 
-| Datei | Verwendung | Beschreibung |
-|-------|-----------|--------------|
-| `config.yaml` | Standard | Default-Werte für alle Umgebungen |
-| `config.dev.yaml` | Entwicklung | Debug-Logging, längere Timeouts, größere Upload-Limits |
-| `config.prod.yaml` | Produktion | HTTPS auf Port 443, striktere Sicherheitseinstellungen |
+### Environment Variables
 
-**Config-Datei laden:**
+| Variable | Config Path | Default | Description |
+|----------|-------------|---------|-------------|
+| `DSCAN_SERVER_PORT` | `server.port` | `8082` | Server port |
+| `DSCAN_SERVER_HOST` | `server.host` | `0.0.0.0` | Server host |
+| `DSCAN_SERVER_TLS_CERT_PATH` | `server.tls_cert_path` | empty | TLS cert (empty = auto self-signed) |
+| `DSCAN_SERVER_TLS_KEY_PATH` | `server.tls_key_path` | empty | TLS key |
+| `DSCAN_SESSION_TIMEOUT` | `session.timeout` | `1h` | Session lifetime |
+| `DSCAN_SESSION_CLEANUP_INTERVAL` | `session.cleanup_interval` | `5m` | Cleanup job interval |
+| `DSCAN_SESSION_MAX_FAILED_ATTEMPTS` | `session.max_failed_attempts` | `3` | PIN attempts before lockout |
+| `DSCAN_SESSION_LOCKOUT_DURATION` | `session.lockout_duration` | `5m` | PIN lockout duration |
+| `DSCAN_UPLOAD_MAX_FILE_SIZE_MB` | `upload.max_file_size_mb` | `10` | Max file size in MB |
+| `DSCAN_UPLOAD_ALLOWED_TYPES` | `upload.allowed_types` | jpeg/png/webp | Comma-separated MIME types |
+| `DSCAN_PDF_MAX_PAGES` | `pdf.max_pages` | `20` | Max pages per PDF |
+| `DSCAN_PDF_JPEG_QUALITY` | `pdf.jpeg_quality` | `85` | JPEG quality (1-100) |
+| `DSCAN_PDF_COMPRESS_OUTPUT` | `pdf.compress_output` | `true` | JPEG compression |
+| `DSCAN_WEB_SOCKET_READ_DEADLINE` | `websocket.read_deadline` | `60s` | WS read deadline |
+| `DSCAN_WEB_SOCKET_PING_INTERVAL` | `websocket.ping_interval` | `30s` | WS ping interval |
+| `DSCAN_WEB_SOCKET_ALLOWED_ORIGINS` | `websocket.allowed_origins` | localhost set | Comma-separated origins |
+| `DSCAN_WEB_SOCKET_ALLOW_PRIVATE_IPS` | `websocket.allow_private_ips` | `true` | Allow private IPs (LAN) |
+| `DSCAN_LOGGING_LEVEL` | `logging.level` | `info` | debug, info, warn, error |
+| `DSCAN_LOGGING_FORMAT` | `logging.format` | `json` | json or text |
+| `DSCAN_RATE_LIMIT_ENABLED` | `rate_limit.enabled` | `true` | Enable rate limiting |
+| `DSCAN_RATE_LIMIT_MAX_REQUESTS` | `rate_limit.max_requests` | `100` | Max requests per window |
+| `DSCAN_RATE_LIMIT_WINDOW_SECONDS` | `rate_limit.window_seconds` | `60` | Window size in seconds |
+
+### Config Files
+
+Predefined config files in `backend/config/`:
+
+| File | Usage | Description |
+|------|-------|-------------|
+| `config.yaml` | Default | Default values for all environments |
+| `config.dev.yaml` | Development | Debug logging, longer timeouts, larger upload limits |
+| `config.prod.yaml` | Production | HTTPS on port 443, stricter security settings |
+
+Use with `--config backend/config/config.prod.yaml` or copy to `/etc/docflow/config.yaml`.
+
+## Security
+
+- **Rate Limiting** - Max 100 requests/minute per IP (configurable)
+- **Security Headers** - HSTS, CSP, X-Frame-Options, etc.
+- **PIN Lockout** - 3 failed attempts → 5 min lockout
+- **Session Timeout** - 1 hour inactivity
+- **HTTPS** - Self-signed certificate (embedded)
+- **WebSocket Auth** - Session ID in URL path
+- **Origin Check** - Configurable allowed origins
+
+## Testing
+
 ```bash
-# Mit Dev-Config starten
-cp backend/config/config.dev.yaml backend/config/config.yaml
-cd backend && ./server
+# Backend
+cd backend && go test ./... -v
 
-# Oder via Docker mit gemountetem Volume
-make docker-run  # Lädt automatisch config.yaml
+# Frontend
+cd frontend/dokumentenscanner && npm run test
 ```
 
-**Beispiel Config-Datei (config.yaml):**
-```yaml
-server:
-  port: "8082"
-  host: "0.0.0.0"
-  tls_cert_path: ""
-  tls_key_path: ""
+## Contributing
 
-session:
-  timeout: 1h
-  cleanup_interval: 5m
-  max_failed_attempts: 3
-  lockout_duration: 5m
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-upload:
-  max_file_size_mb: 10
-  allowed_types:
-    - "image/jpeg"
-    - "image/png"
-    - "image/webp"
+## License
 
-websocket:
-  read_deadline: 60s
-  ping_interval: 30s
-  allowed_origins:
-    - "localhost:8082"
-    - "127.0.0.1:8082"
-  allow_private_ips: true
+[MIT](LICENSE)
 
-logging:
-  level: "info"
-  format: "json"
-```
+## Privacy
 
----
-
-### CLI-Flags
-
-| Flag | Beschreibung | Standardwert |
-|------|--------------|--------------|
-| `--port` | Server-Port | `8082` |
-| `--host` | Server-Host | `0.0.0.0` |
-| `--config` | Pfad zur Config-Datei | `` |
-| `--ws-allow-private-ips` | Private IPs für WebSocket erlauben | `true` |
-| `--ws-origins` | Erlaubte Origins (kommagetrennt) | `localhost:8082,127.0.0.1:8082` |
+See [PRIVACY.md](PRIVACY.md) for data protection information.
