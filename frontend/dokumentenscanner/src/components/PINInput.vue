@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { apiService } from '../utils/api'
 import { websocketClient } from '../utils/websocket'
+
+const { t } = useI18n()
 
 interface Emits {
   (e: 'verified'): void
@@ -34,17 +37,17 @@ const verifyPIN = async () => {
 
 const attemptVerification = async () => {
   if (isLocked.value) {
-    errorMessage.value = `Account locked. Please wait ${lockCountdown.value} before trying again.`
+    errorMessage.value = t('pin.lockedMessage', { countdown: lockCountdown.value })
     return
   }
 
   if (pinInput.value.length !== 6) {
-    errorMessage.value = 'PIN must be 6 digits'
+    errorMessage.value = t('pin.mustBe6Digits')
     return
   }
 
   if (!sessionStore.sessionID) {
-    errorMessage.value = 'No session ID. Please refresh the page.'
+    errorMessage.value = t('pin.noSessionId')
     return
   }
 
@@ -60,21 +63,21 @@ const attemptVerification = async () => {
       sessionStore.setSessionID(response.session_id || sessionStore.sessionID)
       sessionStore.setStatus('upload_allowed')
 
-      websocketClient.connect(sessionStore.sessionID)
+      websocketClient.connect(sessionStore.sessionID, pinInput.value)
 
       emit('verified')
     } else {
       sessionStore.incrementFailedAttempts()
-      errorMessage.value = response.message || 'Invalid PIN'
+      errorMessage.value = response.message || t('pin.invalidPin')
       pinInput.value = ''
 
       if (sessionStore.failedAttempts >= 3) {
         sessionStore.setLockedUntil(new Date(Date.now() + 30000))
-        errorMessage.value = 'Too many failed attempts. Account locked for 30 seconds.'
+        errorMessage.value = t('pin.tooManyAttempts')
       }
     }
   } catch (error) {
-    errorMessage.value = 'Connection error. Please check your network.'
+    errorMessage.value = t('pin.connectionError')
     console.error('Verification error:', error)
   } finally {
     isLoading.value = false
@@ -136,8 +139,8 @@ function handlePaste(e: ClipboardEvent) {
           <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
         </svg>
       </div>
-      <h2>Enter PIN</h2>
-      <p class="info">Enter the 6-digit PIN to start scanning</p>
+      <h2>{{ t('pin.heading') }}</h2>
+      <p class="info">{{ t('pin.enterPinInfo') }}</p>
     </div>
 
     <div class="input-group">
@@ -170,12 +173,12 @@ function handlePaste(e: ClipboardEvent) {
 
     <div v-if="showBackButton && !isLocked" class="attempts-info">
       <span v-if="remainingAttempts > 0">
-        {{ remainingAttempts }} attempt{{ remainingAttempts !== 1 ? 's' : '' }} remaining
+        {{ remainingAttempts }} {{ remainingAttempts !== 1 ? t('pin.attemptsPlural') : t('pin.attempts') }} {{ t('pin.remaining') }}
       </span>
     </div>
 
     <div v-if="isLocked" class="locked-message">
-      <p>Account locked for security</p>
+      <p>{{ t('pin.locked') }}</p>
       <p class="countdown">{{ lockCountdown }}</p>
     </div>
 
@@ -186,7 +189,7 @@ function handlePaste(e: ClipboardEvent) {
         :disabled="isLoading"
         v-if="showBackButton || sessionStore.sessionID"
       >
-        Start Over
+        {{ t('common.startOver') }}
       </button>
 
       <button
@@ -194,8 +197,8 @@ function handlePaste(e: ClipboardEvent) {
         class="btn btn-primary"
         :disabled="isLoading || isLocked || pinInput.length !== 6"
       >
-        <span v-if="isLoading">Verifying...</span>
-        <span v-else>Verify PIN</span>
+        <span v-if="isLoading">{{ t('common.verifying') }}</span>
+        <span v-else>{{ t('pin.verifyPin') }}</span>
       </button>
     </div>
   </div>

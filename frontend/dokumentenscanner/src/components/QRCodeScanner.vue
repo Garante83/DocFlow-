@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { BrowserQRCodeReader } from '@zxing/library'
+
+const { t } = useI18n()
 
 interface Emits {
   (e: 'scanned', data: string): void
@@ -32,10 +35,10 @@ async function initializeScanner() {
     if (hasCameraAccess.value && videoRef.value) {
       await startScanning()
     } else {
-      errorMessage.value = 'No camera detected. Please use the upload option instead.'
+      errorMessage.value = t('qr.noCameraDetected')
     }
   } catch (error) {
-    errorMessage.value = 'Could not access camera. Please check permissions.'
+    errorMessage.value = t('qr.cameraAccessError')
     console.error('Camera access error:', error)
   }
 }
@@ -60,13 +63,13 @@ async function startScanning() {
           // Ignore not found errors - these are expected when no QR code is present
           if (error.name !== 'NotFoundException') {
             console.error('Scan error:', error)
-            errorMessage.value = 'Scan error. Please try again.'
+            errorMessage.value = t('qr.scanError')
           }
         }
       }
     )
   } catch (error) {
-    errorMessage.value = 'Could not start camera. Please check permissions.'
+    errorMessage.value = t('qr.cameraStartError')
     console.error('Scan start error:', error)
   }
 }
@@ -109,14 +112,14 @@ function restartScanning() {
 <template>
   <div class="qr-scanner-container">
     <div class="header">
-      <h2>Scan QR Code</h2>
-      <p class="info">Point your camera at a QR code containing the session ID</p>
+      <h2>{{ t('qr.scanQrCode') }}</h2>
+      <p class="info">{{ t('qr.scanInfo') }}</p>
     </div>
 
     <!-- Error message -->
     <div v-if="errorMessage" class="error-message">
       <p>{{ errorMessage }}</p>
-      <button @click="restartScanning" class="retry-btn" v-if="hasCameraAccess">Retry</button>
+      <button @click="restartScanning" class="retry-btn" v-if="hasCameraAccess">{{ t('common.retry') }}</button>
     </div>
 
     <!-- Video preview -->
@@ -130,26 +133,26 @@ function restartScanning() {
       
       <div v-if="isScanning" class="scanning-indicator">
         <div class="laser-line"></div>
-        <p>Scanning...</p>
+        <p>{{ t('qr.scanning') }}</p>
       </div>
     </div>
 
     <!-- Scanned result -->
     <div v-if="scannedData" class="scan-result">
-      <p>Scanned: {{ scannedData }}</p>
+      <p>{{ t('qr.scanned') }} {{ scannedData }}</p>
     </div>
 
     <!-- Actions -->
     <div class="actions">
       <button @click="handleBack" class="btn btn-secondary">
-        Back
+        {{ t('common.back') }}
       </button>
     </div>
 
     <!-- No camera access -->
     <div v-if="!hasCameraAccess && !errorMessage" class="no-camera">
-      <p>No camera access. Please use the upload option instead.</p>
-      <button @click="handleBack" class="btn btn-primary">Go Back</button>
+      <p>{{ t('qr.noCamera') }}</p>
+      <button @click="handleBack" class="btn btn-primary">{{ t('qr.goBack') }}</button>
     </div>
   </div>
 </template>

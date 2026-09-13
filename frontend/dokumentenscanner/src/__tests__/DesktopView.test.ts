@@ -107,16 +107,16 @@ const mountOpts = { global: { plugins: [createPinia()], stubs: { QRCodeDisplay: 
     const wrapper = mount(DesktopView, mountOpts)
 
     await vi.waitFor(() => {
-      expect(wrapper.text()).toContain('Failed to create session')
+      expect(wrapper.text()).toContain('Download failed')
     })
   })
 
-  it('should call websocketClient.connect with session_id', async () => {
+  it('should call websocketClient.connect with session_id and pin', async () => {
     mockCreateSession.mockResolvedValue({ session_id: 'test-id', pin: '123456' })
     mount(DesktopView, mountOpts)
 
     await vi.waitFor(() => {
-      expect(websocketClient.connect).toHaveBeenCalledWith('test-id')
+      expect(websocketClient.connect).toHaveBeenCalledWith('test-id', '123456')
     })
   })
 
@@ -162,7 +162,7 @@ const mountOpts = { global: { plugins: [createPinia()], stubs: { QRCodeDisplay: 
       revokeObjectURL: vi.fn(),
     })
 
-    const wrapper = mount(DesktopView, mountOpts)
+    mount(DesktopView, mountOpts)
 
     await vi.waitFor(() => {
       expect(websocketClient.on).toHaveBeenCalledWith('download_confirmed', expect.any(Function))
@@ -216,7 +216,7 @@ const mountOpts = { global: { plugins: [createPinia()], stubs: { QRCodeDisplay: 
     await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).toContain('3')
-    expect(wrapper.text()).toContain('Pages Received')
+    expect(wrapper.text()).toContain('received')
   })
 
   it('should register pdf_ready handler', async () => {
@@ -250,6 +250,6 @@ const mountOpts = { global: { plugins: [createPinia()], stubs: { QRCodeDisplay: 
     await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).toContain('5')
-    expect(wrapper.text()).toContain('pages')
+    expect(wrapper.text()).toContain('Pages')
   })
 })

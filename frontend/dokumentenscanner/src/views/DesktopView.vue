@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { apiService } from '../utils/api'
 import { websocketClient } from '../utils/websocket'
 import QRCodeDisplay from '../components/QRCodeDisplay.vue'
 
+const { t } = useI18n()
 const sessionStore = useSessionStore()
 
 type ViewState = 'loading' | 'error' | 'qr_display' | 'waiting_pages' | 'confirm_download' | 'waiting_confirm' | 'completed'
 const currentView = ref<ViewState>('loading')
 const errorMessage = ref<string | null>(null)
 const pageCount = ref(0)
+const isDownloading = ref(false)
 
 onMounted(async () => {
   await initializeSession()
@@ -39,16 +42,17 @@ async function initializeSession() {
     sessionStore.setLimits(response.max_file_size_mb || 10, response.max_pages || 20)
     sessionStore.setStatus('waiting_for_pin')
 
-    websocketClient.connect(response.session_id)
+    websocketClient.connect(response.session_id, response.pin)
 
     websocketClient.on('image_added', onImageAdded)
     websocketClient.on('pdf_ready', onPdfReady)
     websocketClient.on('download_confirmed', onDownloadConfirmed)
 
     currentView.value = 'qr_display'
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error creating session:', error)
-    errorMessage.value = 'Failed to create session. Please check your connection.'
+    const err = error as { userMessage?: string }
+    errorMessage.value = err.userMessage || t('desktop.downloadFailed')
     currentView.value = 'error'
   }
 }
@@ -74,7 +78,11 @@ function requestDownload() {
 }
 
 async function downloadPDF() {
-  if (!sessionStore.sessionID) return
+  if (!sessionStore.sessionID || isDownloading.value) return
+  
+  isDownloading.value = true
+  errorMessage.value = null
+  
   try {
     const blob = await apiService.downloadPDF(sessionStore.sessionID)
     const url = window.URL.createObjectURL(blob)
@@ -86,10 +94,21 @@ async function downloadPDF() {
     window.URL.revokeObjectURL(url)
     document.body.removeChild(a)
     currentView.value = 'completed'
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Download failed:', error)
-    errorMessage.value = 'Download failed. Please try again.'
+    const err = error as { userMessage?: string; response?: { status?: number } }
+    
+    // Provide specific error message
+    if (err.response?.status === 404) {
+      errorMessage.value = t('desktop.pdfNotFound')
+    } else if (err.response?.status === 410) {
+      errorMessage.value = t('desktop.pdfAlreadyDownloaded')
+    } else {
+      errorMessage.value = err.userMessage || t('desktop.downloadFailed')
+    }
     currentView.value = 'confirm_download'
+  } finally {
+    isDownloading.value = false
   }
 }
 
@@ -106,22 +125,22 @@ function startNewSession() {
       <div class="logo">
         <span class="logo-icon">&#128196;</span>
       </div>
-      <h1>Document Scanner</h1>
-      <p class="subtitle">Scan and convert your documents to PDF</p>
+      <h1>{{ t('desktop.title') }}</h1>
+      <p class="subtitle">{{ t('desktop.subtitle') }}</p>
     </div>
 
     <div class="main-content">
       <!-- Loading state -->
       <div v-if="currentView === 'loading'" class="card">
         <div class="spinner"></div>
-        <p class="loading-text">Initializing session...</p>
+        <p class="loading-text">{{ t('desktop.initializing') }}</p>
       </div>
 
       <!-- Error state -->
       <div v-else-if="currentView === 'error'" class="card card-error">
         <div class="error-icon">&#9888;</div>
         <p class="error-message">{{ errorMessage }}</p>
-        <button @click="initializeSession" class="btn btn-primary">Retry</button>
+        <button @click="initializeSession" class="btn btn-primary">{{ t('desktop.retry') }}</button>
       </div>
 
       <!-- QR Code + PIN display -->
@@ -131,9 +150,9 @@ function startNewSession() {
       <div v-else-if="currentView === 'waiting_pages'" class="card">
         <div class="page-counter">
           <span class="page-count">{{ pageCount }}</span>
-          <span class="page-label">{{ pageCount === 1 ? 'Page' : 'Pages' }} Received</span>
+          <span class="page-label">{{ pageCount === 1 ? t('desktop.page') : t('desktop.pages') }} {{ t('desktop.received') }}</span>
         </div>
-        <p class="info">The phone is adding pages to the document. Waiting for finalization...</p>
+        <p class="info">{{ t('desktop.waitingForFinalization') }}</p>
         <div class="pulse-ring small">
           <div class="pulse-ring-inner"></div>
         </div>
@@ -146,16 +165,25 @@ function startNewSession() {
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
         </div>
-        <h2>Document Ready</h2>
-        <p class="info" v-if="pageCount > 0">{{ pageCount }} {{ pageCount === 1 ? 'page' : 'pages' }} — PDF is ready for download.</p>
-        <p class="info" v-else>The document has been processed and is ready for download.</p>
-        <button @click="requestDownload" class="btn btn-primary btn-lg">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Download PDF
+        <h2>{{ t('desktop.documentReady') }}</h2>
+        <p class="info" v-if="pageCount > 0">{{ pageCount }} {{ pageCount === 1 ? t('desktop.page') : t('desktop.pages') }} — {{ t('desktop.pdfReadyForDownload') }}</p>
+        <p class="info" v-else>{{ t('desktop.processedForDownload') }}</p>
+        <div v-if="errorMessage" class="download-error">
+          <p class="error-text">{{ errorMessage }}</p>
+        </div>
+        <button @click="requestDownload" class="btn btn-primary btn-lg" :disabled="isDownloading">
+          <template v-if="isDownloading">
+            <div class="spinner-small"></div>
+            <span style="margin-left:8px">{{ t('desktop.downloading') }}</span>
+          </template>
+          <template v-else>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            {{ t('desktop.downloadPdf') }}
+          </template>
         </button>
       </div>
 
@@ -164,9 +192,9 @@ function startNewSession() {
         <div class="pulse-ring">
           <div class="pulse-ring-inner"></div>
         </div>
-        <h2>Waiting for Confirmation</h2>
-        <p class="info">Please confirm the download on your phone.</p>
-        <p class="hint">Do not close this window.</p>
+        <h2>{{ t('desktop.waitingForConfirmation') }}</h2>
+        <p class="info">{{ t('desktop.confirmOnPhone') }}</p>
+        <p class="hint">{{ t('desktop.doNotClose') }}</p>
       </div>
 
       <!-- Completed -->
@@ -176,16 +204,16 @@ function startNewSession() {
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
         </div>
-        <h2>Vorgang abgeschlossen</h2>
-        <p class="info" v-if="pageCount > 0">{{ pageCount }} {{ pageCount === 1 ? 'Seite' : 'Seiten' }} — PDF wurde heruntergeladen.</p>
-        <p class="info" v-else>Das PDF wurde erfolgreich heruntergeladen.</p>
-        <p class="hint">Alle Session-Daten wurden vom Server gelöscht.</p>
+        <h2>{{ t('desktop.completed') }}</h2>
+        <p class="info" v-if="pageCount > 0">{{ pageCount }} {{ pageCount === 1 ? t('desktop.page') : t('desktop.pages') }} — {{ t('desktop.completedInfo') }}</p>
+        <p class="info" v-else>{{ t('desktop.completedInfo') }}</p>
+        <p class="hint">{{ t('desktop.sessionDataDeleted') }}</p>
         <button @click="startNewSession" class="btn btn-success btn-lg">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px">
             <polyline points="1 4 1 10 7 10"></polyline>
             <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
           </svg>
-          Neue Sitzung starten
+          {{ t('desktop.newSession') }}
         </button>
       </div>
     </div>
@@ -309,6 +337,30 @@ function startNewSession() {
   text-align: center;
 }
 
+.download-error {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-sm);
+}
+
+.error-text {
+  color: var(--color-error);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: center;
+  margin: 0;
+}
+
+.spinner-small {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+}
+
 .hint {
   color: var(--color-warning);
   font-size: 0.85rem;
@@ -321,7 +373,7 @@ function startNewSession() {
   font-size: 0.95rem;
 }
 
-/* Page Counter */
+/* Pulse animation for waiting */
 .page-counter {
   display: flex;
   flex-direction: column;
@@ -358,6 +410,10 @@ function startNewSession() {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.spinner-small {
+  animation: spin 0.8s linear infinite;
 }
 
 /* Pulse animation for waiting */

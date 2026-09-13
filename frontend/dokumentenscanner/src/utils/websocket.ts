@@ -37,11 +37,11 @@ class WebSocketClient {
   private eventHandlers: Map<WebSocketEventType, ((data: unknown) => void)[]> = new Map()
   private sessionStore = useSessionStore()
 
-  connect(sessionID: string): void {
+  connect(sessionID: string, token?: string): void {
     // Close existing connection if any
     this.disconnect()
 
-    const wsURL = apiService.getWebSocketURL(sessionID)
+    const wsURL = apiService.getWebSocketURL(sessionID, token || this.sessionStore.pin || '')
     
     try {
       this.socket = new WebSocket(wsURL)

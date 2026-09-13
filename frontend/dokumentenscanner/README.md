@@ -1,4 +1,4 @@
-# Dokumentenscanner Frontend
+# DocFlow Frontend
 
 Vue 3 + TypeScript frontend for document scanning and PDF conversion.
 

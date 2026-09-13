@@ -83,8 +83,7 @@ describe('WebSocketClient', () => {
       MockWebSocket.instances[0]!.simulateOpen()
       MockWebSocket.instances[0]!.simulateMessage(JSON.stringify({ event: 'image_uploaded', data: {} }))
 
-      expect(handler).toHaveBeenCalledOnce()
-      expect(handler).toHaveBeenCalledWith({})
+      expect(handler).toHaveBeenCalledExactlyOnceWith({})
     })
 
     it('should NOT call handler twice for a single message', () => {

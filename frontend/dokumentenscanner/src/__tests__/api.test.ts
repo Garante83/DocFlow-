@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { setActivePinia, createPinia } from 'pinia'
 
 const mockPost = vi.hoisted(() => vi.fn())
 const mockGet = vi.hoisted(() => vi.fn())

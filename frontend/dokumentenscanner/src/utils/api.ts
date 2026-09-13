@@ -1,8 +1,11 @@
-// API Utility for Dokumentenscanner
+// API Utility for DocFlow
 // Handles all HTTP requests to the backend
 
 import axios from 'axios'
 import { useSessionStore } from '../stores/sessionStore'
+import i18n from '../i18n'
+
+const t = i18n.global.t
 
 // Create axios instance with base configuration
 // When running standalone, use the configured backend URL
@@ -40,34 +43,51 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Extract meaningful error message from backend response
+    let message = t('api.unexpectedError')
+    
     if (error.code === 'ECONNREFUSED') {
-      console.error('Connection refused - Backend server is not running')
+      message = t('api.connectionRefused')
     } else if (error.response) {
       const status = error.response.status
+      const data = error.response.data
       
-      switch (status) {
-        case 401:
-          console.error('Unauthorized - Invalid PIN or session')
-          break
-        case 403:
-          console.error('Forbidden - Access denied')
-          break
-        case 404:
-          console.error('Not found - Endpoint does not exist')
-          break
-        case 429:
-          console.error('Too many requests - Rate limited')
-          break
-        case 500:
-          console.error('Internal server error')
-          break
-        default:
-          console.error(`Error ${status}: ${error.response.data}`)
+      // Use backend error message if available
+      if (data && typeof data === 'object' && data.error) {
+        message = data.error
+      } else {
+        switch (status) {
+          case 400:
+            message = t('api.invalidRequest')
+            break
+          case 401:
+            message = t('api.invalidPin')
+            break
+          case 403:
+            message = t('api.sessionNotReady')
+            break
+          case 404:
+            message = t('api.sessionNotFound')
+            break
+          case 413:
+            message = t('api.fileTooLarge')
+            break
+          case 429:
+            message = t('api.tooManyRequests')
+            break
+          case 500:
+            message = t('api.serverError')
+            break
+          default:
+            message = `Error ${status}: ${data?.message || t('api.unexpectedError')}`
+        }
       }
     } else if (error.request) {
-      console.error('No response received from server')
+      message = t('api.noResponse')
     }
     
+    // Attach message to error for callers to use
+    error.userMessage = message
     return Promise.reject(error)
   }
 )
@@ -76,6 +96,7 @@ api.interceptors.response.use(
 export interface CreateSessionResponse {
   session_id: string
   pin: string
+  message?: string
   max_file_size_mb?: number
   max_pages?: number
 }
@@ -177,12 +198,12 @@ export const apiService = {
     return response.data
   },
 
-  // WebSocket URL
-  getWebSocketURL(sessionID: string): string {
+  // WebSocket URL with authentication token
+  getWebSocketURL(sessionID: string, token: string): string {
     const backendURL = import.meta.env.VITE_BACKEND_URL || window.location.origin
     const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const host = backendURL.replace(/^https?:\/\//, '') || window.location.host
-    return `${wsProtocol}://${host}/ws/session/${sessionID}`
+    return `${wsProtocol}://${host}/ws/session/${sessionID}?token=${encodeURIComponent(token)}`
   },
 }
 

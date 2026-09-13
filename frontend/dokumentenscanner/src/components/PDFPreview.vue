@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { apiService } from '../utils/api'
+
+const { t } = useI18n()
 
 interface Emits {
   (e: 'downloaded'): void
@@ -33,7 +36,7 @@ onUnmounted(() => {
 
 async function fetchPDF() {
   if (!sessionStore.sessionID) {
-    errorMessage.value = 'No session ID available'
+    errorMessage.value = t('pdf.noSessionId')
     isLoading.value = false
     return
   }
@@ -42,7 +45,7 @@ async function fetchPDF() {
     await downloadPDF()
   } catch (error) {
     console.error('Error fetching PDF:', error)
-    errorMessage.value = 'Failed to load PDF. Please try again.'
+    errorMessage.value = t('pdf.loadFailed')
     isLoading.value = false
   }
 }
@@ -63,7 +66,7 @@ async function downloadPDF() {
     isLoading.value = false
   } catch (error) {
     console.error('Error downloading PDF:', error)
-    errorMessage.value = 'Failed to download PDF. Please try again.'
+    errorMessage.value = t('pdf.downloadFailed')
     isLoading.value = false
   }
 }
@@ -129,10 +132,10 @@ async function retryDownload() {
 }
 
 function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 Bytes'
+  if (bytes === 0) return '0 ' + t('pdf.units.bytes')
   
   const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const sizes = [t('pdf.units.bytes'), t('pdf.units.kb'), t('pdf.units.mb'), t('pdf.units.gb')]
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
@@ -142,20 +145,20 @@ function formatFileSize(bytes: number): string {
 <template>
   <div class="pdf-preview-container">
     <div class="header">
-      <h2>PDF Preview</h2>
-      <p class="info">Your document has been converted to PDF</p>
+      <h2>{{ t('pdf.preview') }}</h2>
+      <p class="info">{{ t('pdf.converted') }}</p>
     </div>
 
     <!-- Loading state -->
     <div v-if="isLoading" class="loading">
       <div class="spinner"></div>
-      <p>Generating PDF...</p>
+      <p>{{ t('pdf.generating') }}</p>
     </div>
 
     <!-- Error state -->
     <div v-else-if="errorMessage" class="error">
       <p class="error-message">{{ errorMessage }}</p>
-      <button @click="retryDownload" class="retry-btn">Retry</button>
+      <button @click="retryDownload" class="retry-btn">{{ t('common.retry') }}</button>
     </div>
 
     <!-- PDF preview -->
@@ -169,7 +172,7 @@ function formatFileSize(bytes: number): string {
       </div>
       
       <div class="file-info">
-        <p>PDF Document</p>
+        <p>{{ t('pdf.document') }}</p>
         <p v-if="pdfBlob" class="file-size">
           {{ formatFileSize(pdfBlob.size) }}
         </p>
@@ -178,18 +181,18 @@ function formatFileSize(bytes: number): string {
       <!-- Actions -->
       <div class="actions">
         <button @click="handleBack" class="btn btn-secondary">
-          Back
+          {{ t('common.back') }}
         </button>
         <button @click="downloadPDFFile" class="btn btn-primary">
-          Download PDF
+          {{ t('pdf.downloadPdf') }}
         </button>
       </div>
     </div>
 
     <!-- Empty state -->
     <div v-else class="empty-state">
-      <p>No PDF available</p>
-      <button @click="retryDownload" class="btn btn-primary">Retry</button>
+      <p>{{ t('pdf.noPdf') }}</p>
+      <button @click="retryDownload" class="btn btn-primary">{{ t('common.retry') }}</button>
     </div>
   </div>
 </template>

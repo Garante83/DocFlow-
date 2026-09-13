@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { apiService } from '../utils/api'
 import { websocketClient } from '../utils/websocket'
 import PINInput from '../components/PINInput.vue'
 import ImageUpload from '../components/ImageUpload.vue'
 
+const { t } = useI18n()
 const route = useRoute()
 const sessionStore = useSessionStore()
 
@@ -27,7 +29,7 @@ onMounted(() => {
     sessionStore.setSessionID(sessionId)
     currentView.value = 'pin'
   } else {
-    errorMessage.value = 'No session ID provided. Please scan the QR code again.'
+    errorMessage.value = t('mobile.noSessionId')
     currentView.value = 'error'
   }
 
@@ -62,7 +64,7 @@ async function handleFinalize() {
     sessionStore.setStatus('uploaded')
   } catch (error) {
     console.error('Finalize failed:', error)
-    errorMessage.value = 'Failed to generate PDF. Please try again.'
+    errorMessage.value = t('mobile.pdfGenerateFailed')
     currentView.value = 'upload'
   }
 }
@@ -79,15 +81,15 @@ function confirmDownload() {
       <div class="logo">
         <span class="logo-icon">&#128196;</span>
       </div>
-      <h1>Doc Scanner</h1>
-      <p class="subtitle">Upload your document</p>
+      <h1>{{ t('mobile.title') }}</h1>
+      <p class="subtitle">{{ t('mobile.subtitle') }}</p>
     </div>
 
     <div class="main-content">
       <!-- Loading state -->
       <div v-if="currentView === 'loading'" class="card">
         <div class="spinner"></div>
-        <p class="loading-text">Joining session...</p>
+        <p class="loading-text">{{ t('mobile.joiningSession') }}</p>
       </div>
 
       <!-- Error state -->
@@ -114,9 +116,9 @@ function confirmDownload() {
       <!-- Finalize: generating PDF -->
       <div v-else-if="currentView === 'finalize'" class="card">
         <div class="spinner"></div>
-        <h2>PDF wird erstellt</h2>
-        <p class="info">Bitte bestätige den Download auf dem Desktop.</p>
-        <p class="hint">Schließe dieses Fenster nicht, bis der Download abgeschlossen ist.</p>
+        <h2>{{ t('mobile.generatingPdf') }}</h2>
+        <p class="info">{{ t('mobile.confirmDownloadDesktop') }}</p>
+        <p class="hint">{{ t('mobile.doNotClose') }}</p>
       </div>
 
       <!-- Download confirmation -->
@@ -128,15 +130,15 @@ function confirmDownload() {
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
         </div>
-        <h2>Download Requested</h2>
-        <p class="info">The desktop wants to download the PDF.</p>
+        <h2>{{ t('mobile.downloadRequested') }}</h2>
+        <p class="info">{{ t('mobile.desktopWantsDownload') }}</p>
         <button @click="confirmDownload" class="btn btn-success btn-full">
-          Confirm Download
+          {{ t('mobile.confirmDownload') }}
         </button>
         <button @click="currentView = 'done'" class="btn btn-ghost btn-full">
-          Cancel
+          {{ t('common.cancel') }}
         </button>
-        <p class="hint">Do not close this window until the download has started on the desktop.</p>
+        <p class="hint">{{ t('mobile.doNotCloseUntilStarted') }}</p>
       </div>
 
       <!-- Upload complete -->
@@ -146,8 +148,8 @@ function confirmDownload() {
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
         </div>
-        <h2>Upload Complete</h2>
-        <p class="info">Your document has been sent. You can close this page.</p>
+        <h2>{{ t('mobile.uploadComplete') }}</h2>
+        <p class="info">{{ t('mobile.documentSent') }}</p>
       </div>
     </div>
   </div>

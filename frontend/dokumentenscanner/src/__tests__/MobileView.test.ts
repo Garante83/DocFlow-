@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { setActivePinia, createPinia } from 'pinia'
+import { createPinia } from 'pinia'
 
 // Track handler registrations (hoisted-safe)
 const registeredHandlers = vi.hoisted(() => new Map<string, ((data: unknown) => void)[]>())
@@ -19,12 +19,15 @@ const mockUploadImage = vi.hoisted(() => vi.fn())
 const mockRoute = vi.hoisted(() => ({ query: { session_id: 'test-session-id' } }))
 
 // Mock WebSocket
-vi.stubGlobal('WebSocket', class {
-  static instances: any[] = []
+vi.stubGlobal('WebSocket', class MockWebSocket {
+  static instances: MockWebSocket[] = []
   readyState = 1
-  onopen: any = null; onclose: any = null; onmessage: any = null; onerror: any = null
+  onopen: ((ev: Event) => void) | null = null
+  onclose: ((ev: CloseEvent) => void) | null = null
+  onmessage: ((ev: MessageEvent) => void) | null = null
+  onerror: ((ev: Event) => void) | null = null
   sent: string[] = []
-  constructor(public url: string) { (this.constructor as any).instances.push(this) }
+  constructor(public url: string) { MockWebSocket.instances.push(this) }
   simulateOpen() { this.readyState = 1; this.onopen?.(new Event('open')) }
   send(data: string) { this.sent.push(data) }
   close() { this.readyState = 3; this.onclose?.(new CloseEvent('close', { code: 1000 })) }
@@ -170,7 +173,7 @@ describe('MobileView', () => {
     // simulate the full flow by directly modifying the component's state.
     
     // Access the component instance
-    const vm = wrapper.vm as any
+    const vm = wrapper.vm as { currentView: string }
     // Set the view to 'done' (simulating completed upload)
     vm.currentView = 'done'
     await wrapper.vm.$nextTick()
@@ -201,7 +204,7 @@ describe('MobileView', () => {
     })
 
     // Set to done state
-    const vm = wrapper.vm as any
+    const vm = wrapper.vm as { currentView: string }
     vm.currentView = 'done'
     await wrapper.vm.$nextTick()
 

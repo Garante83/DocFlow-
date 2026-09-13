@@ -58,6 +58,7 @@ export const useSessionStore = defineStore('session', () => {
   function reorderImage(from: number, to: number) {
     if (from < 0 || from >= images.value.length || to < 0 || to >= images.value.length) return
     const [item] = images.value.splice(from, 1)
+    if (item === undefined) return
     images.value.splice(to, 0, item)
   }
 

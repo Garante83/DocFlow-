@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 
+const { t } = useI18n()
 const sessionStore = useSessionStore()
 
 const qrCodeUrl = computed(() => {
@@ -14,8 +16,8 @@ const qrCodeUrl = computed(() => {
 <template>
   <div class="qr-display-container">
     <div class="qr-header">
-      <h2>Scan to Connect</h2>
-      <p class="info">Open your phone camera and scan this QR code</p>
+      <h2>{{ t('qr.scanToConnect') }}</h2>
+      <p class="info">{{ t('qr.openCameraAndScan') }}</p>
     </div>
 
     <div class="qr-code-wrapper">
@@ -27,19 +29,19 @@ const qrCodeUrl = computed(() => {
       />
       <div v-else class="qr-placeholder">
         <div class="spinner"></div>
-        <p>Generating QR Code...</p>
+        <p>{{ t('qr.generatingQr') }}</p>
       </div>
     </div>
 
     <div class="pin-display">
-      <p class="pin-label">Or enter PIN manually:</p>
+      <p class="pin-label">{{ t('qr.orEnterPin') }}</p>
       <p class="pin-value">{{ sessionStore.pin }}</p>
     </div>
 
     <div class="session-info">
       <div class="waiting-badge">
         <span class="pulse-dot"></span>
-        <span>Waiting for mobile upload...</span>
+        <span>{{ t('qr.waitingForUpload') }}</span>
       </div>
       <p class="session-id">{{ sessionStore.sessionID }}</p>
     </div>

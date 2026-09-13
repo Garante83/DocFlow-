@@ -23,12 +23,13 @@ export default defineConfig(({ mode }) => {
     // Use hash for router compatibility
     build: {
       outDir: 'dist',
-      sourcemap: true,
+      sourcemap: env.VITE_SOURCEMAP === 'true',
     },
     test: {
       environment: 'jsdom',
       globals: true,
       include: ['src/**/*.{test,spec}.{js,ts}'],
+      setupFiles: ['src/__tests__/setup.ts'],
     },
     // Server configuration
     server: {

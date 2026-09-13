@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, toRaw, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { apiService } from '../utils/api'
+import { AngleIndicator, tiltStatus } from '../utils/angleIndicator'
+import { FrameAnalyzer } from '../utils/frameAnalyzer'
+import type { FrameStatus } from '../utils/frameAnalyzer'
 
 interface Emits {
   (e: 'pageAdded', data: { page_count: number }): void
@@ -10,6 +14,7 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>()
+const { t } = useI18n()
 const sessionStore = useSessionStore()
 
 type Mode = 'choose' | 'camera' | 'edit'
@@ -27,6 +32,44 @@ const videoRef = ref<HTMLVideoElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const cameraStream = ref<MediaStream | null>(null)
 const cameraReady = ref(false)
+
+// Tilt indicator: sensor chain first (deviceorientation -> Accelerometer),
+// then visual fallback (video frame analysis) when sensors are unavailable.
+const angleIndicator = new AngleIndicator()
+const frameAnalyzer = new FrameAnalyzer()
+const tiltAvailable = ref(false)
+const tiltStatusName = ref<'good' | 'ok' | 'bad' | 'filled'>('good')
+const angleTextKey = computed(() => `upload.angle${tiltStatusName.value.charAt(0).toUpperCase()}${tiltStatusName.value.slice(1)}`)
+
+let visualPending = false
+
+function onSensorUpdate(deg: number) {
+  tiltStatusName.value = tiltStatus(deg)
+  tiltAvailable.value = true
+}
+
+function onVisualStatus(status: FrameStatus) {
+  if (status === 'nodoc') {
+    tiltAvailable.value = false
+    return
+  }
+  tiltStatusName.value = status
+  tiltAvailable.value = true
+}
+
+function startVisualFallback() {
+  const video = videoRef.value
+  if (video === null || video.videoWidth === 0) {
+    visualPending = true
+    return
+  }
+  visualPending = false
+  frameAnalyzer.start(video, onVisualStatus)
+}
+
+watch(cameraReady, (ready) => {
+  if (ready && visualPending) startVisualFallback()
+})
 
 // Rotation
 const rotation = ref(0)
@@ -62,17 +105,22 @@ const uploadPercent = computed(() => {
 })
 
 async function loadImageBitmap(file: File): Promise<ImageBitmap> {
-  return createImageBitmap(file, { orientation: 'from-image' })
+  return createImageBitmap(file, { imageOrientation: 'from-image' })
 }
 
 // Edit from list: load an existing image into edit mode
 function editFromList(index: number) {
   if (index < 0 || index >= sessionStore.images.length) return
-  const file = sessionStore.images[index]
+  const raw = sessionStore.images[index]
+  if (raw === undefined) return
+  const file = toRaw(raw) as File
   editIndex.value = index
   selectedFile.value = file
   previewUrl.value = URL.createObjectURL(file)
   rotation.value = 0
+  isUploading.value = false
+  errorMessage.value = null
+  successMessage.value = null
   mode.value = 'edit'
 }
 
@@ -86,17 +134,19 @@ function handleFileChange(event: Event) {
   // If only one file, show it in edit mode
   if (files.length === 1) {
     const file = files[0]
+    if (!file) return
     if (!validTypes.includes(file.type)) {
-      errorMessage.value = 'Please select JPEG or PNG images'
+      errorMessage.value = t('upload.invalidType', { name: file.name })
       return
     }
     if (file.size > sessionStore.maxFileSizeMB * 1024 * 1024) {
-      errorMessage.value = `File size must be less than ${sessionStore.maxFileSizeMB}MB`
+      errorMessage.value = t('upload.tooLarge', { name: file.name, size: formatFileSize(file.size), max: sessionStore.maxFileSizeMB })
       return
     }
     selectedFile.value = file
     errorMessage.value = null
     successMessage.value = null
+    isUploading.value = false
     previewUrl.value = URL.createObjectURL(file)
     rotation.value = 0
     mode.value = 'edit'
@@ -117,36 +167,43 @@ async function uploadMultipleFiles(files: File[]) {
   const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
   let uploaded = 0
   let failed = 0
+  let lastError = ''
 
-  for (const file of files) {
-    if (!validTypes.includes(file.type)) {
-      failed++
-      continue
+  try {
+    for (const file of files) {
+      if (!validTypes.includes(file.type)) {
+        lastError = t('upload.invalidType', { name: file.name })
+        failed++
+        continue
+      }
+      if (file.size > sessionStore.maxFileSizeMB * 1024 * 1024) {
+        lastError = t('upload.tooLarge', { name: file.name, size: formatFileSize(file.size), max: sessionStore.maxFileSizeMB })
+        failed++
+        continue
+      }
+      try {
+        const normalized = await normalizeImage(file, 0)
+        await apiService.uploadImage(sessionStore.sessionID, normalized)
+        sessionStore.addImage(normalized)
+        uploaded++
+      } catch (error: unknown) {
+        const err = error as { userMessage?: string; response?: { data?: { error?: string } } }
+        lastError = err.userMessage || err.response?.data?.error || t('upload.uploadFailed')
+        failed++
+      }
     }
-    if (file.size > sessionStore.maxFileSizeMB * 1024 * 1024) {
-      failed++
-      continue
-    }
-    try {
-      const normalized = await normalizeImage(file, 0)
-      await apiService.uploadImage(sessionStore.sessionID, normalized)
-      sessionStore.addImage(normalized)
-      uploaded++
-    } catch (error) {
-      failed++
-    }
-  }
 
-  if (uploaded > 0) {
-    sessionStore.setStatus('uploading')
-    emit('pageAdded', { page_count: sessionStore.imageCount })
-    successMessage.value = `${uploaded} ${uploaded === 1 ? 'page' : 'pages'} added successfully!`
+    if (uploaded > 0) {
+      sessionStore.setStatus('uploading')
+      emit('pageAdded', { page_count: sessionStore.imageCount })
+      successMessage.value = t('upload.pagesAdded', { count: uploaded })
+    }
+    if (failed > 0) {
+      errorMessage.value = lastError || t('upload.filesFailed', { count: failed })
+    }
+  } finally {
+    isUploading.value = false
   }
-  if (failed > 0) {
-    errorMessage.value = `${failed} file(s) failed to upload (invalid type or too large)`
-  }
-
-  isUploading.value = false
 }
 
 function triggerFileInput() {
@@ -158,6 +215,18 @@ function triggerFileInput() {
 async function openCamera() {
   errorMessage.value = null
   try {
+    // Request sensor permission FIRST (synchronous part of the click gesture),
+    // before getUserMedia - Safari drops the gesture context after the first await.
+    const sensorOk = await angleIndicator.requestPermission()
+    tiltAvailable.value = false
+    visualPending = false
+    if (sensorOk) {
+      angleIndicator.start(onSensorUpdate, () => startVisualFallback())
+    } else {
+      // Permission denied on iOS -> go straight to the visual fallback
+      startVisualFallback()
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
       audio: false,
@@ -177,7 +246,11 @@ async function openCamera() {
     }, 100)
   } catch (err) {
     console.error('Camera error:', err)
-    errorMessage.value = 'Could not access camera. Please check permissions.'
+    angleIndicator.stop()
+    frameAnalyzer.stop()
+    visualPending = false
+    tiltAvailable.value = false
+    errorMessage.value = t('upload.cameraError')
   }
 }
 
@@ -186,6 +259,10 @@ function closeCamera() {
     cameraStream.value.getTracks().forEach(t => t.stop())
     cameraStream.value = null
   }
+  angleIndicator.stop()
+  frameAnalyzer.stop()
+  visualPending = false
+  tiltAvailable.value = false
   mode.value = 'choose'
 }
 
@@ -204,6 +281,9 @@ function capturePhoto() {
     selectedFile.value = file
     previewUrl.value = URL.createObjectURL(blob)
     rotation.value = 0
+    isUploading.value = false
+    errorMessage.value = null
+    successMessage.value = null
     closeCamera()
     mode.value = 'edit'
   }, 'image/jpeg', 0.92)
@@ -227,11 +307,14 @@ async function openCrop() {
   try {
     const bmp = await loadImageBitmap(selectedFile.value)
     cropImageBitmap.value = bmp
-    cropArea.value = { x: 0, y: 0, w: bmp.width, h: bmp.height }
+    // Place the crop frame visibly inside the image (5% inset, centered)
+    const insetX = bmp.width * 0.05
+    const insetY = bmp.height * 0.05
+    cropArea.value = { x: insetX, y: insetY, w: bmp.width - insetX * 2, h: bmp.height - insetY * 2 }
     drawCrop()
   } catch {
     showCrop.value = false
-    errorMessage.value = 'Could not load image for cropping.'
+    errorMessage.value = t('upload.cropError')
   }
 }
 
@@ -270,22 +353,41 @@ function drawCrop() {
   ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height)
   ctx.restore()
 
-  // Border
+  // Rule-of-thirds grid inside the crop area
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  for (let i = 1; i <= 2; i++) {
+    const gx = sx + (sw / 3) * i
+    const gy = sy + (sh / 3) * i
+    ctx.moveTo(gx, sy)
+    ctx.lineTo(gx, sy + sh)
+    ctx.moveTo(sx, gy)
+    ctx.lineTo(sx + sw, gy)
+  }
+  ctx.stroke()
+
+  // Border: dark contour under white line for contrast on light backgrounds
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)'
+  ctx.lineWidth = 5
+  ctx.strokeRect(sx, sy, sw, sh)
   ctx.strokeStyle = '#fff'
-  ctx.lineWidth = 2
+  ctx.lineWidth = 3
   ctx.strokeRect(sx, sy, sw, sh)
 
-  // Corner handles
-  const handleSize = 14
+  // Corner handles (clamped fully inside the canvas)
+  const handleSize = 16
   ctx.fillStyle = '#3498db'
   ctx.strokeStyle = '#fff'
   ctx.lineWidth = 1
-  const corners = [
+  const corners: [number, number][] = [
     [sx, sy], [sx + sw, sy], [sx, sy + sh], [sx + sw, sy + sh],
   ]
   for (const [cx, cy] of corners) {
-    ctx.fillRect(cx - handleSize / 2, cy - handleSize / 2, handleSize, handleSize)
-    ctx.strokeRect(cx - handleSize / 2, cy - handleSize / 2, handleSize, handleSize)
+    const hx = Math.max(handleSize / 2, Math.min(cx, canvas.width - handleSize / 2))
+    const hy = Math.max(handleSize / 2, Math.min(cy, canvas.height - handleSize / 2))
+    ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize)
+    ctx.strokeRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize)
   }
 }
 
@@ -294,8 +396,10 @@ function getEventCoords(e: TouchEvent | MouseEvent): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect()
   let clientX: number, clientY: number
   if ('touches' in e) {
-    clientX = e.touches[0].clientX
-    clientY = e.touches[0].clientY
+    const touch = e.touches[0]
+    if (!touch) return { x: 0, y: 0 }
+    clientX = touch.clientX
+    clientY = touch.clientY
   } else {
     clientX = e.clientX
     clientY = e.clientY
@@ -426,6 +530,7 @@ function resetEdit() {
   previewUrl.value = null
   editIndex.value = null
   rotation.value = 0
+  isUploading.value = false
   showCrop.value = false
   mode.value = 'choose'
 }
@@ -457,10 +562,6 @@ async function normalizeImage(file: File, degrees: number): Promise<File> {
   })
 }
 
-async function rotateImage(file: File, degrees: number): Promise<File> {
-  return normalizeImage(file, degrees)
-}
-
 async function uploadFile() {
   if (!selectedFile.value || !sessionStore.sessionID) return
 
@@ -473,16 +574,24 @@ async function uploadFile() {
     let fileToUpload = selectedFile.value
     fileToUpload = await normalizeImage(fileToUpload, rotation.value)
 
+    // Client-side size check with specific message
+    const maxBytes = sessionStore.maxFileSizeMB * 1024 * 1024
+    if (fileToUpload.size > maxBytes) {
+      errorMessage.value = t('upload.tooLarge', { name: selectedFile.value.name, size: formatFileSize(fileToUpload.size), max: sessionStore.maxFileSizeMB })
+      isUploading.value = false
+      return
+    }
+
     const response = await apiService.uploadImage(sessionStore.sessionID, fileToUpload)
 
     if (editIndex.value !== null) {
       // Replace existing image in the list
       sessionStore.images[editIndex.value] = fileToUpload
-      successMessage.value = 'Page updated successfully!'
+      successMessage.value = t('upload.pageUpdated')
     } else {
       // Add new image
       sessionStore.addImage(fileToUpload)
-      successMessage.value = 'Page added successfully!'
+      successMessage.value = t('upload.pageAdded')
     }
 
     sessionStore.setStatus('uploading')
@@ -498,8 +607,17 @@ async function uploadFile() {
     rotation.value = 0
     showCrop.value = false
     mode.value = 'choose'
-  } catch (error) {
-    errorMessage.value = 'Upload failed. Please try again.'
+  } catch (error: unknown) {
+    const err = error as { userMessage?: string; response?: { status?: number; data?: { error?: string } } }
+    
+    // Use the specific error message from the API interceptor
+    if (err.userMessage) {
+      errorMessage.value = err.userMessage
+    } else if (err.response?.data?.error) {
+      errorMessage.value = err.response.data.error
+    } else {
+      errorMessage.value = t('upload.uploadFailed')
+    }
     console.error('Upload error:', error)
   } finally {
     isUploading.value = false
@@ -507,9 +625,9 @@ async function uploadFile() {
 }
 
 function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 Bytes'
+  if (bytes === 0) return '0 ' + t('pdf.units.bytes')
   const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const sizes = [t('pdf.units.bytes'), t('pdf.units.kb'), t('pdf.units.mb'), t('pdf.units.gb')]
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
@@ -527,9 +645,9 @@ onUnmounted(() => {
     <!-- ==================== CHOOSE MODE ==================== -->
     <template v-if="mode === 'choose'">
       <div class="header">
-        <h2>Upload Document</h2>
-        <p class="info" v-if="sessionStore.imageCount === 0">Take a photo or select images</p>
-        <p class="info" v-else>{{ sessionStore.imageCount }} {{ sessionStore.imageCount === 1 ? 'page' : 'pages' }} added</p>
+        <h2>{{ t('upload.heading') }}</h2>
+        <p class="info" v-if="sessionStore.imageCount === 0">{{ t('upload.takePhotoOrSelect') }}</p>
+        <p class="info" v-else>{{ sessionStore.imageCount }} {{ sessionStore.imageCount === 1 ? t('upload.page') : t('upload.pages') }} {{ t('upload.added') }}</p>
         <div v-if="sessionStore.imageCount > 0" class="usage-bar">
           <div class="usage-fill" :style="{ width: uploadPercent + '%' }" :class="{ 'usage-warning': uploadPercent > 80 }"></div>
         </div>
@@ -546,7 +664,7 @@ onUnmounted(() => {
               <circle cx="12" cy="13" r="4"></circle>
             </svg>
           </span>
-          <span class="choose-label">Take Photo</span>
+          <span class="choose-label">{{ t('upload.takePhoto') }}</span>
         </button>
         <button @click="triggerFileInput" class="choose-btn file-btn">
           <span class="choose-icon-wrap file-icon-wrap">
@@ -555,7 +673,7 @@ onUnmounted(() => {
               <polyline points="14 2 14 8 20 8"></polyline>
             </svg>
           </span>
-          <span class="choose-label">Choose File</span>
+          <span class="choose-label">{{ t('upload.chooseFile') }}</span>
         </button>
       </div>
 
@@ -572,12 +690,12 @@ onUnmounted(() => {
 
       <!-- Page list -->
       <div v-if="sessionStore.imageCount > 0" class="page-list">
-        <h3 class="page-list-title">{{ sessionStore.imageCount }} {{ sessionStore.imageCount === 1 ? 'Page' : 'Pages' }}</h3>
+        <h3 class="page-list-title">{{ sessionStore.imageCount }} {{ t('upload.pageListTitle') }}</h3>
         <div class="page-items">
           <div v-for="(file, index) in sessionStore.images" :key="index" class="page-item" @click="editFromList(index)">
             <img :src="pageThumbs[index]" class="page-thumb" />
             <span class="page-number">{{ index + 1 }}</span>
-            <button @click.stop="sessionStore.removeImage(index)" class="page-remove" title="Remove page">
+            <button @click.stop="sessionStore.removeImage(index)" class="page-remove" :title="t('upload.removePage')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -593,7 +711,7 @@ onUnmounted(() => {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
-          Generate PDF
+          {{ t('upload.generatePdf') }}
         </button>
       </div>
     </template>
@@ -601,21 +719,31 @@ onUnmounted(() => {
     <!-- ==================== CAMERA MODE ==================== -->
     <template v-if="mode === 'camera'">
       <div class="header">
-        <h2>Camera</h2>
-        <p class="info">Point at your document and tap capture</p>
+        <h2>{{ t('upload.camera') }}</h2>
+        <p class="info">{{ t('upload.cameraInfo') }}</p>
       </div>
 
       <div class="camera-container">
-        <video ref="videoRef" autoplay playsinline class="camera-video"></video>
+        <video
+          ref="videoRef"
+          autoplay
+          playsinline
+          class="camera-video"
+          :class="tiltAvailable ? `tilt-${tiltStatusName}` : ''"
+        ></video>
         <canvas ref="canvasRef" class="camera-canvas-hidden"></canvas>
+        <div v-if="tiltAvailable" class="angle-hud">
+          <span class="angle-dot" :class="`dot-${tiltStatusName}`"></span>
+          <span class="angle-text">{{ t(angleTextKey) }}</span>
+        </div>
         <div v-if="!cameraReady" class="camera-loading">
           <div class="spinner"></div>
-          <p>Starting camera...</p>
+          <p>{{ t('upload.startingCamera') }}</p>
         </div>
       </div>
 
       <div class="camera-controls">
-        <button @click="closeCamera" class="btn btn-secondary">Cancel</button>
+        <button @click="closeCamera" class="btn btn-secondary">{{ t('common.cancel') }}</button>
         <button @click="capturePhoto" class="capture-btn" :disabled="!cameraReady">
           <span class="capture-ring"></span>
         </button>
@@ -626,13 +754,13 @@ onUnmounted(() => {
     <!-- ==================== EDIT MODE ==================== -->
     <template v-if="mode === 'edit' && !showCrop">
       <div class="header">
-        <h2>Edit Document</h2>
-        <p class="info">Rotate or crop before uploading</p>
+        <h2>{{ t('upload.editDocument') }}</h2>
+        <p class="info">{{ t('upload.editInfo') }}</p>
       </div>
 
       <div class="preview-section" v-if="previewUrl">
         <div class="preview-image-container" :style="{ transform: `rotate(${rotation}deg)` }">
-          <img :src="previewUrl" alt="Preview" class="preview-image" />
+          <img :src="previewUrl" :alt="t('upload.preview')" class="preview-image" />
         </div>
         <p class="file-info">
           {{ selectedFile?.name }} ({{ formatFileSize(selectedFile?.size || 0) }})
@@ -640,13 +768,13 @@ onUnmounted(() => {
       </div>
 
       <div class="edit-toolbar">
-        <button @click="rotateLeft" class="toolbar-btn" title="Rotate left">
+        <button @click="rotateLeft" class="toolbar-btn" :title="t('upload.rotateLeft')">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
         </button>
-        <button @click="rotateRight" class="toolbar-btn" title="Rotate right">
+        <button @click="rotateRight" class="toolbar-btn" :title="t('upload.rotateRight')">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"></path></svg>
         </button>
-        <button @click="openCrop" class="toolbar-btn" title="Crop">
+        <button @click="openCrop" class="toolbar-btn" :title="t('upload.crop')">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"></path><path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path></svg>
         </button>
       </div>
@@ -655,10 +783,10 @@ onUnmounted(() => {
       <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
 
       <div class="actions">
-        <button @click="resetEdit" class="btn btn-secondary" :disabled="isUploading">Back</button>
+        <button @click="resetEdit" class="btn btn-secondary" :disabled="isUploading">{{ t('common.back') }}</button>
         <button @click="uploadFile" class="btn btn-primary" :disabled="!canUpload">
-          <span v-if="isUploading">Uploading...</span>
-          <span v-else>{{ editIndex !== null ? 'Update Page' : 'Add Page' }}</span>
+          <span v-if="isUploading">{{ t('common.uploading') }}</span>
+          <span v-else>{{ editIndex !== null ? t('upload.updatePage') : t('upload.addPage') }}</span>
         </button>
       </div>
     </template>
@@ -666,8 +794,8 @@ onUnmounted(() => {
     <!-- ==================== CROP MODE ==================== -->
     <template v-if="showCrop">
       <div class="header">
-        <h2>Crop Document</h2>
-        <p class="info">Drag the corners to select the document area</p>
+        <h2>{{ t('upload.cropDocument') }}</h2>
+        <p class="info">{{ t('upload.cropInfo') }}</p>
       </div>
 
       <div class="crop-container">
@@ -685,8 +813,8 @@ onUnmounted(() => {
       </div>
 
       <div class="actions">
-        <button @click="cancelCrop" class="btn btn-secondary">Cancel</button>
-        <button @click="applyCrop" class="btn btn-primary">Apply Crop</button>
+        <button @click="cancelCrop" class="btn btn-secondary">{{ t('common.cancel') }}</button>
+        <button @click="applyCrop" class="btn btn-primary">{{ t('upload.applyCrop') }}</button>
       </div>
     </template>
   </div>
@@ -788,7 +916,34 @@ onUnmounted(() => {
   overflow: hidden; border-radius: var(--radius-md); background: #000;
   box-shadow: var(--shadow-lg);
 }
-.camera-video { width: 100%; display: block; object-fit: cover; max-height: 60vh; }
+.camera-video { width: 100%; display: block; object-fit: cover; max-height: 60vh; border: 3px solid transparent; transition: border-color 0.4s ease; }
+.camera-video.tilt-good { border-color: #34c759; animation: tilt-pulse 2s ease-in-out infinite; }
+.camera-video.tilt-ok { border-color: #f5b301; }
+.camera-video.tilt-bad { border-color: #ef4444; }
+.camera-video.tilt-filled { border-color: #34c759; }
+
+/* Tilt indicator HUD */
+.angle-hud {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(4px);
+  color: white; font-size: 0.85rem; font-weight: 500;
+  transition: opacity 0.3s ease;
+}
+.angle-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  transition: background 0.4s ease;
+}
+.dot-good { background: #34c759; box-shadow: 0 0 8px #34c759; }
+.dot-ok { background: #f5b301; box-shadow: 0 0 8px #f5b301; }
+.dot-bad { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+.dot-filled { background: #34c759; box-shadow: 0 0 8px #34c759; }
+
+@keyframes tilt-pulse {
+  0%, 100% { border-color: #34c759; }
+  50% { border-color: rgba(52, 199, 89, 0.35); }
+}
 .camera-canvas-hidden { display: none; }
 .camera-loading {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -808,7 +963,7 @@ onUnmounted(() => {
 .capture-ring { width: 52px; height: 52px; border-radius: 50%; border: 3px solid white; }
 
 /* EDIT */
-.preview-section { width: 100%; text-align: center; }
+.preview-section { width: 100%; text-align: center; overflow: hidden; }
 .preview-image-container {
   max-width: 100%; max-height: 45vh; overflow: hidden;
   border: 2px solid var(--color-border); border-radius: var(--radius-md);
