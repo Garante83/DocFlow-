@@ -1,27 +1,29 @@
 # DocFlow - Document Scanner
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go&logoColor=white)](https://golang.org)
+[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go&logoColor=white)](https://golang.org)
 [![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D?style=flat&logo=vuedotjs&logoColor=white)](https://vuejs.org)
 
 Web-based document scanner: Desktop shows QR code, phone scans and uploads images, desktop generates PDF.
 
 ## Features
 
-- **Session Management** - Temporary sessions with 6-digit PIN and 1h timeout
+- **Session Management** - Temporary sessions with 6-digit PIN and configurable timeout
 - **QR Code Connection** - Automatic LAN IP detection for easy connection
 - **Multi-Page Upload** - Multiple photos per session, editable (rotate, crop)
+- **Camera Angle Indicator** - Sensor-based tilt hint with visual frame-analysis fallback
 - **PDF Conversion** - Server-side multi-page PDF with JPEG compression (85%)
-- **WebSocket Communication** - Real-time updates between desktop and mobile
+- **WebSocket Communication** - Real-time updates between desktop and mobile (PIN auth via first message, never in URLs)
 - **Burn-after-Reading** - Session is deleted after PDF download
-- **HTTPS** - Self-signed TLS certificate (embedded in binary)
+- **HTTPS** - Runtime-generated self-signed TLS certificate (or own certs via config)
+- **Privacy by Design** - RAM-only processing, no IP/PIN logging, configurable deployment
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
-| Backend | Go 1.21+ / Gin / gorilla/websocket / go-pdf/fpdf |
-| Frontend | Vue 3 / Vite / Pinia / Axios / Vitest |
+| Backend | Go 1.26 / Gin / gorilla/websocket / go-pdf/fpdf |
+| Frontend | Vue 3 / Vite / Pinia / vue-i18n / Vitest |
 | Configuration | Viper (YAML + ENV + CLI Flags) |
 | Logging | log/slog (JSON, stdlib) |
 
@@ -175,10 +177,11 @@ Use with `--config backend/config/config.prod.yaml` or copy to `/etc/docflow/con
 
 - **Rate Limiting** - Max 100 requests/minute per IP (configurable)
 - **Security Headers** - HSTS, CSP, X-Frame-Options, etc.
-- **PIN Lockout** - 3 failed attempts → 5 min lockout
-- **Session Timeout** - 1 hour inactivity
-- **HTTPS** - Self-signed certificate (embedded)
-- **WebSocket Auth** - Session ID in URL path
+- **PIN Lockout** - Failed attempts → lockout (configurable)
+- **Session Timeout** - Configurable inactivity timeout
+- **HTTPS** - Runtime-generated self-signed certificate (own certs via config)
+- **WebSocket Auth** - Session ID in URL path, PIN token as first message (never logged)
+- **Privacy Logging** - Access logs contain no IP addresses and no query strings
 - **Origin Check** - Configurable allowed origins
 
 ## Testing
@@ -188,7 +191,7 @@ Use with `--config backend/config/config.prod.yaml` or copy to `/etc/docflow/con
 cd backend && go test ./... -v
 
 # Frontend
-cd frontend/dokumentenscanner && npm run test
+cd frontend/dokumentenscanner && npm run test:unit -- --run
 ```
 
 ## Contributing
@@ -201,4 +204,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Privacy
 
-See [PRIVACY.md](PRIVACY.md) for data protection information.
+See [PRIVACY.md](PRIVACY.md) (German) or [PRIVACY.en.md](PRIVACY.en.md) (English) for data protection information.

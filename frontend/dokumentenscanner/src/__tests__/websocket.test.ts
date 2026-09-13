@@ -157,15 +157,19 @@ describe('WebSocketClient', () => {
   })
 
   describe('send', () => {
-    it('should send JSON message when connected', () => {
+    it('should send auth message on open and JSON message when connected', () => {
       websocketClient.connect('test-session-id')
       MockWebSocket.instances[0]!.simulateOpen()
 
       websocketClient.send('download_request', { session_id: 'abc' })
 
       const ws = MockWebSocket.instances[0]!
-      expect(ws.sent).toHaveLength(1)
-      const sent = JSON.parse(ws.sent[0]!)
+      // First message is the auth handshake (never in the URL), then the actual message
+      expect(ws.sent).toHaveLength(2)
+      const auth = JSON.parse(ws.sent[0]!)
+      expect(auth.type).toBe('auth')
+      expect(JSON.stringify(auth)).not.toContain('download_request')
+      const sent = JSON.parse(ws.sent[1]!)
       expect(sent.event).toBe('download_request')
       expect(sent.data).toEqual({ session_id: 'abc' })
     })

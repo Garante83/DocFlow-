@@ -19,7 +19,7 @@ import (
 //go:embed default_config.yaml
 var defaultConfigYAML string
 
-// Config enthaelt alle Anwendungskonfigurationen
+// Config holds all application configuration
 type Config struct {
 	Server struct {
 		Port        string `mapstructure:"port" json:"port"`
@@ -60,12 +60,12 @@ type Config struct {
 
 	RateLimit struct {
 		Enabled       bool `mapstructure:"enabled" json:"enabled"`
-		MaxRequests   int  `mapstructure:"max_requests" json:"max_requests"`     // pro Fenster
-		WindowSeconds int  `mapstructure:"window_seconds" json:"window_seconds"` // Fenster in Sekunden
+		MaxRequests   int  `mapstructure:"max_requests" json:"max_requests"`     // per window
+		WindowSeconds int  `mapstructure:"window_seconds" json:"window_seconds"` // window in seconds
 	} `mapstructure:"rate_limit" json:"rate_limit"`
 }
 
-// DefaultConfig gibt Standardwerte zuruck
+// DefaultConfig returns the default values
 func DefaultConfig() *Config {
 	cfg := &Config{}
 
@@ -108,74 +108,74 @@ func DefaultConfig() *Config {
 	return cfg
 }
 
-// LoadConfig laedt die Konfiguration aus verschiedenen Quellen
+// LoadConfig loads the configuration from various sources
 func LoadConfig(configPath string) (*Config, error) {
-	// 0. Pre-Scan: --config Flag aus os.Args lesen, bevor irgendetwas anderes
-	// passiert (die restlichen Flags brauchen Viper-Defaults als DefValue)
+	// 0. Pre-scan: read the --config flag from os.Args before anything else
+	// happens (the remaining flags need Viper defaults as DefValue)
 	if configPath == "" {
 		configPath = preScanConfigPath(os.Args[1:])
 	}
 
-	// 1. Erstelle Viper Instanz
+	// 1. Create Viper instance
 	v := viper.New()
-	v.SetConfigName("config") // Name der Config-Datei (ohne Endung)
-	v.SetConfigType("yaml")   // oder json
-	v.AutomaticEnv()          // Lese Umgebungsvariablen automatisch
-	v.SetEnvPrefix("DSCAN")   // Praefix fuer Umgebungsvariablen (z.B. DSCAN_SERVER_PORT)
+	v.SetConfigName("config") // name of the config file (without extension)
+	v.SetConfigType("yaml")   // or json
+	v.AutomaticEnv()          // read environment variables automatically
+	v.SetEnvPrefix("DSCAN")   // prefix for environment variables (e.g. DSCAN_SERVER_PORT)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	// 2. Suchpfade oder explizite Datei
+	// 2. Search paths or explicit file
 	explicitFile := false
 	if configPath != "" {
 		v.SetConfigFile(configPath)
 		explicitFile = true
 	} else {
-		// Standardpfade
+		// standard paths
 		v.AddConfigPath(".")
 		v.AddConfigPath("./config")
 		v.AddConfigPath("/etc/docflow")
 	}
 
-	// 3. Lese Config-Datei (falls existiert)
+	// 3. Read config file (if it exists)
 	if err := v.ReadInConfig(); err != nil {
 		if explicitFile {
-			// Explizite Datei: Jeder Fehler ist fatal (auch nicht gefunden)
+			// Explicit file: every error is fatal (including not found)
 			if isNotFoundError(err) {
 				return nil, fmt.Errorf("config file not found: %s", configPath)
 			}
 			return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
 		}
-		// Suchpfade: "Nicht gefunden" wird ignoriert und die Default-Config
-		// beim ersten Start an einen schreibbaren Ort geschrieben
+		// Search paths: "not found" is ignored and the default config is
+		// written to a writable location on first start
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
 		writeDefaultConfig()
 	}
 
-	// 4. Parse CLI Flags (ueberschreibt Config-Datei)
-	// Nur wenn flag.Parsed() == false, d.h. flag.Parse() wurde noch nicht aufgerufen
+	// 4. Parse CLI flags (overrides config file)
+	// Only if flag.Parsed() == false, i.e. flag.Parse() has not been called yet
 	if !flag.Parsed() {
 		registerFlags(v)
 		flag.Parse()
 		applyFlagsToViper(v)
 	}
 
-	// 5. Binde Umgebungsvariablen explizit in Viper
-	// Dies ist notwendig, da Viper.AutomaticEnv() nur funktioniert,
-	// wenn die Config-Datei die Struktur definiert. Ohne Config-Datei
-	// mussen wir die Werte manuell ubertragen.
+	// 5. Bind environment variables explicitly in Viper
+	// This is necessary because Viper.AutomaticEnv() only works
+	// when the config file defines the structure. Without a config file
+	// we have to transfer the values manually.
 	bindEnvVars(v)
 
-	// 6. Erstelle Config-Objekt mit Defaults
+	// 6. Create config object with defaults
 	cfg := DefaultConfig()
 
-	// 7. Unmarshal in Struct (ueberschreibt Defaults mit Config-Datei/Umgebungsvariablen/Flags)
+	// 7. Unmarshal into struct (overrides defaults with config file/env vars/flags)
 	if err := v.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	// 7. Validierung
+	// 7. Validation
 	if err := validateConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -183,9 +183,9 @@ func LoadConfig(configPath string) (*Config, error) {
 	return cfg, nil
 }
 
-// preScanConfigPath sucht --config in den Argumenten, bevor die eigentliche
-// Flag-Verarbeitung laeuft (diese braucht Viper-Defaults als Basis).
-// Unterstuetzt "--config pfad" und "--config=pfad" (auch einfach-Bindestrich).
+// preScanConfigPath searches for --config in the arguments before the actual
+// flag processing runs (this needs Viper defaults as its basis).
+// Supports "--config path" and "--config=path" (single dash as well).
 func preScanConfigPath(args []string) string {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -205,7 +205,7 @@ func preScanConfigPath(args []string) string {
 	return ""
 }
 
-// isNotFoundError prueft ob der Viper-Fehler auf eine fehlende Datei hinweist
+// isNotFoundError checks whether the Viper error indicates a missing file
 func isNotFoundError(err error) bool {
 	var pathErr *os.PathError
 	if errors.As(err, &pathErr) {
@@ -214,9 +214,9 @@ func isNotFoundError(err error) bool {
 	return false
 }
 
-// writeDefaultConfig schreibt die eingebettete Default-Config an den ersten
-// schreibbaren Kandidatenpfad. Fehler werden nur geloggt, der Start laeuft
-// mit Built-in-Defaults weiter (z.B. read-only Dateisysteme).
+// writeDefaultConfig writes the embedded default config to the first
+// writable candidate path. Errors are only logged; startup continues
+// with built-in defaults (e.g. read-only filesystems).
 var writeDefaultConfigCandidates = []string{"config.yaml", "config/config.yaml", "/etc/docflow/config.yaml"}
 
 func writeDefaultConfig() {
@@ -234,21 +234,21 @@ func writeDefaultConfig() {
 	slog.Warn("No writable location for default config, using built-in defaults")
 }
 
-// registerFlags registriert CLI-Flags mit Viper-Defaults als DefValue.
-// ACHTUNG: flag.Parse() wird NICHT hier aufgerufen, da dies zu Konflikten
-// mit Test-Flags fuehren kann. Der Aufrufer muss flag.Parse() selbst aufrufen.
+// registerFlags registers CLI flags with Viper defaults as DefValue.
+// NOTE: flag.Parse() is NOT called here because that could conflict
+// with test flags. The caller must call flag.Parse() itself.
 func registerFlags(v *viper.Viper) {
 	flag.String("port", v.GetString("server.port"), "Server port")
 	flag.String("host", v.GetString("server.host"), "Server host")
 	flag.String("config", "", "Path to config file")
 
-	// WebSocket spezifisch
+	// WebSocket specific
 	flag.Bool("ws-allow-private-ips", v.GetBool("websocket.allow_private_ips"), "Allow connections from private IPs")
 	flag.String("ws-origins", strings.Join(v.GetStringSlice("websocket.allowed_origins"), ","), "Comma-separated allowed origins")
 }
 
-// applyFlagsToViper uebertraegt geparste Flag-Werte in Viper. Muss NACH
-// flag.Parse() laufen, da vorher Value == DefValue gilt.
+// applyFlagsToViper transfers parsed flag values into Viper. Must run AFTER
+// flag.Parse(), because before that Value == DefValue.
 func applyFlagsToViper(v *viper.Viper) {
 	if f := flag.Lookup("port"); f != nil && f.Value.String() != f.DefValue {
 		v.Set("server.port", f.Value.String())
@@ -265,7 +265,7 @@ func applyFlagsToViper(v *viper.Viper) {
 	}
 }
 
-// validateConfig validiert die geladene Konfiguration
+// validateConfig validates the loaded configuration
 func validateConfig(cfg *Config) error {
 	if cfg.Server.Port == "" {
 		return errors.New("server.port must be set")
@@ -282,8 +282,8 @@ func validateConfig(cfg *Config) error {
 	return nil
 }
 
-// bindEnvVars bindet Umgebungsvariablen explizit an Viper
-// Dies ist notwendig, da Viper.AutomaticEnv() ohne Config-Datei nicht alle Variablen erkennt
+// bindEnvVars explicitly binds environment variables to Viper
+// This is necessary because Viper.AutomaticEnv() does not detect all variables without a config file
 func bindEnvVars(v *viper.Viper) {
 	// Server
 	if port := os.Getenv("DSCAN_SERVER_PORT"); port != "" {
@@ -388,7 +388,7 @@ func bindEnvVars(v *viper.Viper) {
 	}
 }
 
-// ToJSON gibt die Konfiguration als JSON zurueck (fuer Debugging)
+// ToJSON returns the configuration as JSON (for debugging)
 func (c *Config) ToJSON() (string, error) {
 	bytes, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {

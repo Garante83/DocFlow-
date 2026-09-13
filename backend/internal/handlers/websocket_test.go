@@ -1,12 +1,17 @@
 package handlers
 
 import (
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"docflow/internal/config"
 	"docflow/internal/session"
 	ws "docflow/internal/websocket"
+	"github.com/gin-gonic/gin"
+	gws "github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -211,4 +216,80 @@ func TestWebSocketHandlerSetup(t *testing.T) {
 	hub.Stop()
 
 	assert.True(t, true, "WebSocketHandler setup should complete without panic")
+}
+
+// TestWebSocketHandler_AuthFlow verifies the message-based WebSocket
+// authentication: no token in the URL, auth as first message, constant-time
+// PIN check, and the auth message is never rebroadcast.
+func TestWebSocketHandler_AuthFlow(t *testing.T) {
+	store := session.NewStore()
+	hub := ws.NewHub()
+	go hub.Run()
+	t.Cleanup(func() { hub.Stop() })
+
+	Init(store, hub, config.DefaultConfig())
+
+	router := gin.New()
+	router.GET("/ws/session/:id", WebSocketHandler)
+	server := httptest.NewServer(router)
+	t.Cleanup(func() { server.Close() })
+
+	sess, err := store.Create()
+	require.NoError(t, err)
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws/session/" + sess.ID.String()
+	header := http.Header{"Origin": []string{"https://localhost:8082"}}
+
+	// Valid token: connection stays open and receives broadcasts
+	c, _, err := gws.DefaultDialer.Dial(wsURL, header)
+	require.NoError(t, err)
+	defer c.Close()
+
+	c.WriteMessage(gws.TextMessage, []byte(`{"type":"auth","token":"`+sess.PIN+`"}`))
+
+	received := make(chan string, 1)
+	go func() {
+		_, msg, err := c.ReadMessage()
+		if err == nil {
+			received <- string(msg)
+		}
+	}()
+	time.Sleep(100 * time.Millisecond)
+	hub.Broadcast(sess.ID, []byte(`{"event":"test_broadcast","data":1}`))
+
+	select {
+	case msg := <-received:
+		assert.Contains(t, msg, "test_broadcast")
+	case <-time.After(2 * time.Second):
+		t.Fatal("no broadcast received after successful auth")
+	}
+
+	// Auth messages must never be broadcast to other clients
+	c2, _, err := gws.DefaultDialer.Dial(wsURL, header)
+	require.NoError(t, err)
+	defer c2.Close()
+	c2.WriteMessage(gws.TextMessage, []byte(`{"type":"auth","token":"`+sess.PIN+`"}`))
+	time.Sleep(100 * time.Millisecond)
+	hub.Broadcast(sess.ID, []byte(`{"event":"broadcast_two","data":2}`))
+	time.Sleep(100 * time.Millisecond)
+	// c already read one message; second client should also receive only the broadcast
+	_, msg2, err := c2.ReadMessage()
+	require.NoError(t, err)
+	assert.Contains(t, string(msg2), "broadcast_two")
+
+	// Wrong token: server closes the connection
+	c3, _, err := gws.DefaultDialer.Dial(wsURL, header)
+	require.NoError(t, err)
+	defer c3.Close()
+	c3.WriteMessage(gws.TextMessage, []byte(`{"type":"auth","token":"000000"}`))
+	_, _, err = c3.ReadMessage()
+	assert.Error(t, err, "connection should be closed on wrong token")
+
+	// First message not being auth: server closes the connection
+	c4, _, err := gws.DefaultDialer.Dial(wsURL, header)
+	require.NoError(t, err)
+	defer c4.Close()
+	c4.WriteMessage(gws.TextMessage, []byte(`{"event":"download_request","data":{}}`))
+	_, _, err = c4.ReadMessage()
+	assert.Error(t, err, "connection should be closed when first message is not auth")
 }

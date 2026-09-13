@@ -1,5 +1,5 @@
-# DocFlow - Produktionskonfiguration
-# Erbt von config.default.yaml und überschreibt Produktions-spezifische Werte
+# DocFlow - Production configuration
+# Inherits from config.default.yaml and overrides production-specific values
 
 server:
   port: "443"

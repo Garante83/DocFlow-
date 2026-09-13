@@ -26,10 +26,10 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestLoadConfig_WithoutFile(t *testing.T) {
-	// Temp-Verzeichnis: verhindert, dass der Auto-Create in den Source-Tree schreibt
+	// Temp directory: prevents the auto-create from writing into the source tree
 	t.Chdir(t.TempDir())
 
-	// Test ohne Config-Datei (sollte Defaults nutzen)
+	// Test without a config file (should use defaults)
 	cfg, err := LoadConfig("")
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
@@ -39,7 +39,7 @@ func TestLoadConfig_WithoutFile(t *testing.T) {
 func TestLoadConfig_WithEnvVars(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	// Speichere aktuelle Umgebungsvariable und setze zurueck
+	// Save the current environment variable and restore it afterwards
 	oldPort := os.Getenv("DSCAN_SERVER_PORT")
 	defer func() {
 		if oldPort != "" {
@@ -49,7 +49,7 @@ func TestLoadConfig_WithEnvVars(t *testing.T) {
 		}
 	}()
 
-	// Setze Umgebungsvariable
+	// Set the environment variable
 	os.Setenv("DSCAN_SERVER_PORT", "9090")
 
 	cfg, err := LoadConfig("")
@@ -318,11 +318,11 @@ func TestLoadConfig_FirstStartCreatesConfig(t *testing.T) {
 func TestLoadConfig_WithExplicitConfigFile(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	// Nicht existierende Datei -> klarer Fehler
+	// Non-existent file -> clear error
 	_, err := LoadConfig(filepath.Join(t.TempDir(), "missing.yaml"))
 	require.Error(t, err)
 
-	// Gueltige Datei -> Werte uebernommen
+	// Valid file -> values are applied
 	path := filepath.Join(t.TempDir(), "custom.yaml")
 	err = os.WriteFile(path, []byte("server:\n  port: \"7777\"\n"), 0o644)
 	require.NoError(t, err)

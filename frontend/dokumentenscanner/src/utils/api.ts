@@ -199,11 +199,13 @@ export const apiService = {
   },
 
   // WebSocket URL with authentication token
-  getWebSocketURL(sessionID: string, token: string): string {
+  getWebSocketURL(sessionID: string): string {
     const backendURL = import.meta.env.VITE_BACKEND_URL || window.location.origin
     const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const host = backendURL.replace(/^https?:\/\//, '') || window.location.host
-    return `${wsProtocol}://${host}/ws/session/${sessionID}?token=${encodeURIComponent(token)}`
+    // Auth token is sent as the first WebSocket message, never in the URL
+    // (query strings end up in access logs and reverse-proxy logs)
+    return `${wsProtocol}://${host}/ws/session/${sessionID}`
   },
 }
 

@@ -6,19 +6,19 @@ import (
 	"docflow/internal/websocket"
 )
 
-// HandlerDeps enthaelt alle Abhaengigkeiten fur die Handler
+// HandlerDeps holds all dependencies for the handlers
 type HandlerDeps struct {
 	SessionStore *session.Store
 	WebSocketHub *websocket.Hub
 	Config       *config.Config
 }
 
-// deps ist die globale Instanz der Handler-Deps
-// Wird in Init() initialisiert
+// deps is the global instance of the handler deps
+// Initialized in Init()
 var deps *HandlerDeps
 
-// Init initialisiert die Handler mit ihren Abhaengigkeiten
-// Muss vor dem ersten Handler-Aufruf aufgerufen werden
+// Init initializes the handlers with their dependencies
+// Must be called before the first handler call
 func Init(store *session.Store, hub *websocket.Hub, cfg *config.Config) {
 	deps = &HandlerDeps{
 		SessionStore: store,
@@ -27,8 +27,8 @@ func Init(store *session.Store, hub *websocket.Hub, cfg *config.Config) {
 	}
 }
 
-// getDeps gibt die initialisierten Abhaengigkeiten zuruck
-// Panics wenn Init() noch nicht aufgerufen wurde
+// getDeps returns the initialized dependencies
+// Panics if Init() has not been called yet
 func getDeps() *HandlerDeps {
 	if deps == nil {
 		panic("handlers.Init() must be called before using handlers")

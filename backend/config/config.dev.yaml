@@ -1,5 +1,5 @@
-# DocFlow - Entwicklungskonfiguration
-# Erbt von config.default.yaml und überschreibt Entwicklungsspezifische Werte
+# DocFlow - Development configuration
+# Inherits from config.default.yaml and overrides development-specific values
 
 server:
   port: "8082"

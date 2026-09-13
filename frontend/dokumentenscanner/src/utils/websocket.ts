@@ -36,19 +36,23 @@ class WebSocketClient {
   private reconnectTimeout: number = 3000
   private eventHandlers: Map<WebSocketEventType, ((data: unknown) => void)[]> = new Map()
   private sessionStore = useSessionStore()
+  private authToken: string = ''
 
   connect(sessionID: string, token?: string): void {
     // Close existing connection if any
     this.disconnect()
+    this.authToken = token || this.sessionStore.pin || ''
 
-    const wsURL = apiService.getWebSocketURL(sessionID, token || this.sessionStore.pin || '')
-    
+    const wsURL = apiService.getWebSocketURL(sessionID)
+
     try {
       this.socket = new WebSocket(wsURL)
-      
+
       this.socket.onopen = () => {
         this.reconnectAttempts = 0
         console.log('WebSocket connection established')
+        // Authenticate immediately with the first message (never via URL query)
+        this.socket?.send(JSON.stringify({ type: 'auth', token: this.authToken }))
         this.emitEvent('status_update', { status: 'connected' })
       }
 

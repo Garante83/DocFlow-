@@ -1,6 +1,8 @@
 # DocFlow - Projekt-Dokumentation
 
-*Zentrale Dokumentation für Architektur, Entwicklung und Betrieb. Stand: 2026-07-25*
+*Zentrale Dokumentation für Architektur, Entwicklung und Betrieb. Stand: 2026-09-13.*
+*Note: This is the German reference documentation. Agent context and build
+commands are in [AGENTS.md](AGENTS.md), configuration in [README.md](README.md).*
 
 ---
 
@@ -183,10 +185,24 @@ sequenceDiagram
     D->>D: Neue Sitzung starten
 ```
 
+### WebSocket-Verbindung und Auth
+
+Authentifizierung erfolgt über die **erste Nachricht**, niemals über die URL
+(die PIN würde sonst in Access-Logs und Reverse-Proxy-Logs landen):
+
+```
+Client verbindet /ws/session/{id}
+  → Server wartet (10s Deadline)
+  → Client: {"type":"auth","token":"<PIN>"}     (constant-time geprüft)
+  → gültig:   Client am Hub registriert, normale Events
+  → ungültig: Verbindung geschlossen (1008)
+```
+
 ### WebSocket-Nachrichten
 
 | Event | Richtung | Inhalt |
 |-------|----------|--------|
+| `auth` (erste Nachricht) | Client → Server | `{type, token}` - wird nie rebroadcastet |
 | `image_added` | Server → Desktop | `{session_id, page_count}` |
 | `pdf_ready` | Server → Desktop | `{session_id, page_count}` |
 | `download_request` | Desktop → Mobile | `{session_id}` |
@@ -248,11 +264,32 @@ sequenceDiagram
 
 | Massnahme | Umsetzung |
 |-----------|-----------|
-| PIN-Sperre | 1 Fehlversuch → 5 Min. Sperre |
-| Session-Timeout | 1h Inaktivität |
-| HTTPS | Selbstsigniertes Cert (embedded) |
-| WebSocket-Auth | Session-ID im URL-Path |
+| PIN-Sperre | Konfigurierbar: Fehlversuche → Sperre (`max_failed_attempts`/`lockout_duration`) |
+| PIN-Vergleich | Constant-time (`crypto/subtle`), WS-Auth wie HTTP |
+| Session-Timeout | Konfigurierbar (Default 1h Inaktivität) |
+| HTTPS | Runtime-generiertes Self-Signed-Cert oder eigene Certs via Config |
+| WebSocket-Auth | PIN als erste Nachricht (niemals in URLs/Logs) |
+| Access-Log | Kein Client-IP, kein Query-String, keine PIN |
+| Upload-Größe | `io.LimitReader`, konfigurierbares Limit |
 | Origin-Check | Konfigurierbar (`AllowPrivateIPs`) |
+
+---
+
+## 5b. Tilt-Indikator (Kamera)
+
+Dreistufige Kette mit automatischem Fallback:
+
+```
+1. deviceorientation (Sensor)     iOS mit Permission, Firefox etc.
+2. Accelerometer (Generic Sensor) Chrome/Android
+3. Bildanalyse (frameAnalyzer)    Immer verfügbar (Brave blockt Sensoren still)
+```
+
+Bildanalyse (`frameAnalyzer.ts`): Otsu-Schwelle trennt Dokument vom
+Hintergrund (heller ODER dunklerer als BG), Longest-Run-Rechtecksprüfung
+(knickresistent), Keystone-Ratio (oben/unten + links/rechts) → Status
+good/ok/bad; füllt das Dokument den Rahmen → `filled`. Alles clientseitig
+auf 160px-Downscale bei ~4 fps.
 
 ---
 
@@ -368,6 +405,13 @@ graph TD
     style D fill:#78909c,stroke:#263238,color:#fff,stroke-width:2px
 ```
 
+Alle Einstellungen sind über alle vier Quellen konfigurierbar (ENV-Prefix
+`DSCAN_`, Flags `--port`, `--host`, `--config`, `--ws-origins`,
+`--ws-allow-private-ips`). Beim ersten Start ohne Config-Datei wird eine
+kommentierte `config.yaml` an den ersten schreibbaren Ort geschrieben
+(`./`, `./config/`, `/etc/docflow/`); existierende Dateien werden nie
+überschrieben. Details: `backend/internal/config/default_config.yaml`.
+
 ### Config-Struktur
 
 ```mermaid
@@ -417,7 +461,7 @@ graph TD
 | POST | `/api/session/{id}/finalize` | PDF generieren | `{page_count, pdf_size}` |
 | GET | `/api/session/{id}/pdf` | PDF herunterladen | PDF-Binary + Session-Delete |
 | DELETE | `/api/session/{id}` | Session löschen | 204 |
-| GET | `/ws/session/{id}` | WebSocket-Verbindung | JSON-Events |
+| GET | `/ws/session/{id}` | WebSocket-Verbindung | Auth-Nachricht, dann JSON-Events |
 
 ### WebSocket-Events
 
@@ -514,4 +558,4 @@ cd frontend/dokumentenscanner && npx vitest run
 
 ---
 
-*Stand: 2026-07-25. Siehe auch [plan.md](plan.md) für den detaillierten Projektplan.*
+*Stand: 2026-09-13. Agent-Kontext und Build-Kommandos: siehe [AGENTS.md](AGENTS.md); Konfiguration: [README.md](README.md) "Configuration".*

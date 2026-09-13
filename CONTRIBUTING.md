@@ -6,8 +6,8 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 ### Prerequisites
 
-- **Go** 1.21 or later
-- **Node.js** 18+ and npm
+- **Go** 1.26 or later (see `backend/go.mod`)
+- **Node.js** 22.18+ or 24.12+ and npm (see `frontend/dokumentenscanner/package.json`)
 - **Make** (optional, for build commands)
 
 ### Getting Started
@@ -60,7 +60,7 @@ make test
 
 # Frontend tests
 cd frontend/dokumentenscanner
-npm run test
+npm run test:unit -- --run
 ```
 
 All tests must pass before submitting a PR.

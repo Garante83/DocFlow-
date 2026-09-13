@@ -1,43 +1,43 @@
-# DocFlow - Default Konfiguration
+# DocFlow - Default configuration
 #
-# Diese Datei wurde beim ersten Start automatisch erstellt.
-# Alle Optionen koennen hier angepasst werden; der Server liest sie
-# bei jedem Start neu. Ausserdem gilt:
-#   - ENV-Variablen (Prefix DSCAN_) ueberschreiben diese Datei
-#   - CLI-Flags (--port, --host, ...) ueberschreiben ENV-Variablen
+# This file was created automatically on first start.
+# All options can be adjusted here; the server re-reads the file
+# on every start. In addition:
+#   - Environment variables (DSCAN_ prefix) override this file
+#   - CLI flags (--port, --host, ...) override environment variables
 
 server:
-  # HTTP(S) Port des Servers
+  # HTTP(S) port of the server
   # ENV: DSCAN_SERVER_PORT | Flag: --port
   port: "8082"
-  # Bind-Adresse
+  # Bind address
   # ENV: DSCAN_SERVER_HOST | Flag: --host
   host: "0.0.0.0"
-  # TLS-Zertifikate. Leer = beim Start automatisch generiertes
-  # Self-Signed-Zertifikat verwenden.
+  # TLS certificates. Empty = use an automatically generated
+  # self-signed certificate on startup.
   # ENV: DSCAN_SERVER_TLS_CERT_PATH / DSCAN_SERVER_TLS_KEY_PATH
   tls_cert_path: ""
   tls_key_path: ""
 
 session:
-  # Lebensdauer einer Session
+  # Lifetime of a session
   # ENV: DSCAN_SESSION_TIMEOUT
   timeout: 1h
-  # Intervall des Cleanup-Jobs (loescht abgelaufene Sessions)
+  # Interval of the cleanup job (deletes expired sessions)
   # ENV: DSCAN_SESSION_CLEANUP_INTERVAL
   cleanup_interval: 5m
-  # Fehlversuche der PIN-Eingabe, bevor die Session gesperrt wird
+  # Number of failed PIN attempts before the session is locked
   # ENV: DSCAN_SESSION_MAX_FAILED_ATTEMPTS
   max_failed_attempts: 3
-  # Dauer der Sperrung nach zu vielen Fehlversuchen
+  # Duration of the lockout after too many failed attempts
   # ENV: DSCAN_SESSION_LOCKOUT_DURATION
   lockout_duration: 5m
 
 upload:
-  # Maximale Dateigroesse pro Bild in MB
+  # Maximum file size per image in MB
   # ENV: DSCAN_UPLOAD_MAX_FILE_SIZE_MB
   max_file_size_mb: 10
-  # Erlaubte Bildtypen (kommagetrennt)
+  # Allowed image types (comma-separated)
   # ENV: DSCAN_UPLOAD_ALLOWED_TYPES
   allowed_types:
     - "image/jpeg"
@@ -45,49 +45,49 @@ upload:
     - "image/webp"
 
 pdf:
-  # Maximale Anzahl an Seiten pro Dokument
+  # Maximum number of pages per document
   # ENV: DSCAN_PDF_MAX_PAGES
   max_pages: 20
-  # JPEG-Qualitaet fuer die Seitenkomprimierung (1-100)
+  # JPEG quality for page compression (1-100)
   # ENV: DSCAN_PDF_JPEG_QUALITY
   jpeg_quality: 85
-  # JPEG-Komprimierung aktiv
+  # JPEG compression enabled
   # ENV: DSCAN_PDF_COMPRESS_OUTPUT
   compress_output: true
 
 websocket:
-  # Lese-Deadline fuer WebSocket-Verbindungen
+  # Read deadline for WebSocket connections
   # ENV: DSCAN_WEB_SOCKET_READ_DEADLINE
   read_deadline: 60s
-  # Intervall der Ping-Nachrichten
+  # Interval of ping messages
   # ENV: DSCAN_WEB_SOCKET_PING_INTERVAL
   ping_interval: 30s
-  # Erlaubte Origins fuer WebSocket-Verbindungen (kommagetrennt)
+  # Allowed origins for WebSocket connections (comma-separated)
   # ENV: DSCAN_WEB_SOCKET_ALLOWED_ORIGINS | Flag: --ws-origins
   allowed_origins:
     - "https://localhost:8082"
     - "http://localhost:8082"
     - "https://127.0.0.1:8082"
     - "http://127.0.0.1:8082"
-  # Verbindungen aus privaten Netzen erlauben (LAN-Nutzung)
+  # Allow connections from private networks (LAN usage)
   # ENV: DSCAN_WEB_SOCKET_ALLOW_PRIVATE_IPS | Flag: --ws-allow-private-ips
   allow_private_ips: true
 
 logging:
-  # Log-Level: debug, info, warn, error
+  # Log level: debug, info, warn, error
   # ENV: DSCAN_LOGGING_LEVEL
   level: "info"
-  # Log-Format: json oder text
+  # Log format: json or text
   # ENV: DSCAN_LOGGING_FORMAT
   format: "json"
 
 rate_limit:
-  # Rate-Limiting aktiv (API-Endpunkte)
+  # Rate limiting enabled (API endpoints)
   # ENV: DSCAN_RATE_LIMIT_ENABLED
   enabled: true
-  # Maximale Requests pro Fenster
+  # Maximum requests per window
   # ENV: DSCAN_RATE_LIMIT_MAX_REQUESTS
   max_requests: 100
-  # Fenstergroesse in Sekunden
+  # Window size in seconds
   # ENV: DSCAN_RATE_LIMIT_WINDOW_SECONDS
   window_seconds: 60

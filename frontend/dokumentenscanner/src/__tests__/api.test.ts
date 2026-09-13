@@ -144,5 +144,11 @@ describe('apiService', () => {
       const url = apiService.getWebSocketURL('test-id')
       expect(url).toMatch(/^wss?:\/\//)
     })
+
+    it('should never contain a token in the URL', () => {
+      const url = apiService.getWebSocketURL('test-id')
+      expect(url).not.toContain('token')
+      expect(url).not.toContain('?')
+    })
   })
 })

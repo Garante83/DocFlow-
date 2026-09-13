@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"math/big"
 	"net/http"
@@ -169,8 +170,27 @@ func rateLimitMiddleware(rl *rateLimiter) gin.HandlerFunc {
 	}
 }
 
+// privacyLogFormatter formats access logs WITHOUT any personal data:
+// no client IP, no query string (method, path, status, latency only).
+func privacyLogFormatter(p gin.LogFormatterParams) string {
+	path := p.Path
+	if i := strings.IndexByte(path, '?'); i >= 0 {
+		path = path[:i]
+	}
+	return fmt.Sprintf("%s %s %d %s\n", p.Method, path, p.StatusCode, p.Latency)
+}
+
 func setupRouter(cfg *config.Config) *gin.Engine {
-	r := gin.Default()
+	// Debug mode only with debug logging (release mode avoids route dumps
+	// and debug warnings in production logs)
+	if cfg.Logging.Level != "debug" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	// gin.New() instead of gin.Default(): custom privacy-preserving logger
+	// (no client IP, no query string - the default logger would log both)
+	r := gin.New()
+	r.Use(gin.LoggerWithFormatter(privacyLogFormatter), gin.Recovery())
 
 	// Security headers for all responses
 	r.Use(securityHeaders())
@@ -256,56 +276,59 @@ func setupRouter(cfg *config.Config) *gin.Engine {
 }
 
 func main() {
-	// 1. Konfiguration laden
+	// 1. Load configuration
 	cfg, err := config.LoadConfig("")
 	if err != nil {
 		slog.Error("Failed to load config", "error", err)
 		os.Exit(1)
 	}
 
-	// 2. Logger einrichten
+	// 2. Set up logger
 	setupLogger(cfg)
 
-	// 3. Session-Store mit Config-Werten initialisieren
+	// 3. Initialize session store with config values
 	sessionStore := session.NewStore()
 	cleanupStop := make(chan struct{})
 	sessionStore.StartCleanup(cfg.Session.CleanupInterval, cleanupStop)
 
-	// 4. WebSocket-Hub initialisieren
+	// 4. Initialize WebSocket hub
 	hub := websocket.NewHub()
 	go hub.Run()
 
-	// 5. Handler mit Abhaengigkeiten initialisieren
+	// 5. Initialize handlers with dependencies
 	handlers.Init(sessionStore, hub, cfg)
 
-	// 6. Router einrichten
+	// 6. Set up router
 	r := setupRouter(cfg)
 
-	// 7. TLS konfigurieren: Config-basiert oder temporaeres Cert
+	// 7. Configure TLS: config-based or temporary certificate
 	var certFile, keyFile string
 	if cfg.Server.TLSCertPath != "" && cfg.Server.TLSKeyPath != "" {
-		// Production: Nutze config-basierte Zertifikate
+		// Production: use certificates from config
 		certFile = cfg.Server.TLSCertPath
 		keyFile = cfg.Server.TLSKeyPath
 		slog.Info("Using TLS certificates from config", "cert", certFile)
 	} else {
-		// Development: Generiere temporaeres self-signed Cert
+		// Development: generate a temporary self-signed certificate
 		certFile, keyFile = generateSelfSignedCert()
 		defer os.Remove(certFile)
 		defer os.Remove(keyFile)
 		slog.Info("Using auto-generated self-signed certificate")
 	}
 
-	// 8. HTTP-Server erstellen
+	// 8. Create HTTP server
 	srv := &http.Server{
 		Addr:    getPort(cfg),
 		Handler: r,
 		TLSConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 		},
+		// Suppress net/http connection errors (TLS handshake failures etc.) -
+		// they contain client addresses which must not appear in the logs
+		ErrorLog: log.New(io.Discard, "", 0),
 	}
 
-	// 9. Graceful Shutdown starten
+	// 9. Start graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -323,7 +346,7 @@ func main() {
 		slog.Info("Server stopped")
 	}()
 
-	// 10. Server starten
+	// 10. Start server
 	slog.Info("Server starting", "addr", "0.0.0.0"+srv.Addr, "port", cfg.Server.Port)
 	if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
 		slog.Error("Server failed", "error", err)

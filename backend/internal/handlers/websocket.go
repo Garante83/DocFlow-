@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"log/slog"
 	"net"
@@ -20,6 +21,8 @@ import (
 const (
 	websocketReadBufferSize  = 1024
 	websocketWriteBufferSize = 1024
+	// Deadline for the first message after connecting: it must be the auth message
+	websocketAuthDeadline = 10 * time.Second
 )
 
 // isPrivateIP checks if the given IP address is a private IP
@@ -159,6 +162,10 @@ func parseOrigin(origin string) (*struct {
 }
 
 // WebSocketHandler handles WebSocket connections for sessions.
+// Authentication is NOT done via URL query (the token would end up in access
+// logs and reverse-proxy logs). Instead, the client must send an
+// {"type":"auth","token":"<PIN>"} message as its first message; the
+// connection is registered with the hub only after a valid token.
 func WebSocketHandler(c *gin.Context) {
 	deps := getDeps()
 
@@ -175,7 +182,7 @@ func WebSocketHandler(c *gin.Context) {
 		CheckOrigin:     createOriginChecker(cfg),
 	}
 
-	// Validate session and token before upgrading
+	// Validate session before upgrading
 	sessionIDStr := c.Param("id")
 	sessionID, err := uuid.Parse(sessionIDStr)
 	if err != nil {
@@ -184,33 +191,20 @@ func WebSocketHandler(c *gin.Context) {
 		return
 	}
 
-	// Get token from query parameter
-	token := c.Query("token")
-	if token == "" {
-		slog.Warn("WebSocket connection without token", "session_id", sessionID)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "token required"})
-		return
-	}
-
-	// Check if the session exists and validate token
-	sess, exists := deps.SessionStore.Get(sessionID)
-	if !exists {
+	if _, exists := deps.SessionStore.Get(sessionID); !exists {
 		slog.Warn("Session not found", "session_id", sessionID)
 		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 		return
 	}
 
-	// Validate token against session PIN
-	if sess.PIN != token {
-		slog.Warn("Invalid WebSocket token", "session_id", sessionID)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-		return
-	}
-
-	// Upgrade to WebSocket only after authentication
+	// Upgrade to WebSocket (unauthenticated state until the auth message)
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		slog.Error("Failed to upgrade to WebSocket", "error", err)
+		return
+	}
+
+	if !authenticateWebSocket(conn, deps, sessionID) {
 		return
 	}
 
@@ -227,11 +221,8 @@ func WebSocketHandler(c *gin.Context) {
 		wsConfig.PingInterval = 30 * time.Second
 	}
 
-	// Set initial read deadline
+	// Reset read deadline for the authenticated connection lifetime
 	conn.SetReadDeadline(time.Now().Add(wsConfig.ReadDeadline))
-
-	// Set read limit to prevent memory exhaustion from oversized messages
-	conn.SetReadLimit(4096)
 
 	// Handle pong messages to reset read deadline
 	conn.SetPongHandler(func(string) error {
@@ -266,7 +257,72 @@ func WebSocketHandler(c *gin.Context) {
 			continue
 		}
 
+		// Never rebroadcast auth messages (they carry the PIN)
+		if msg["type"] == "auth" || msg["event"] == "auth" {
+			continue
+		}
+
 		slog.Debug("WebSocket message received", "session_id", sessionID, "length", len(message))
 		deps.WebSocketHub.Broadcast(sessionID, message)
 	}
+}
+
+// authenticateWebSocket reads the first message after the upgrade and
+// validates the token (constant-time) against the session PIN. On any
+// failure the connection is closed and false is returned.
+func authenticateWebSocket(conn *websocket.Conn, deps *HandlerDeps, sessionID uuid.UUID) bool {
+	// Short deadline for the auth handshake, plus a small message size limit
+	conn.SetReadDeadline(time.Now().Add(websocketAuthDeadline))
+	conn.SetReadLimit(4096)
+
+	_, message, err := conn.ReadMessage()
+	if err != nil {
+		slog.Warn("WebSocket closed before auth", "session_id", sessionID)
+		conn.Close()
+		return false
+	}
+
+	var auth struct {
+		Type  string `json:"type"`
+		Event string `json:"event"`
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(message, &auth); err != nil {
+		slog.Warn("WebSocket auth message not JSON", "session_id", sessionID)
+		closeUnauthenticated(conn)
+		return false
+	}
+
+	if auth.Type != "auth" && auth.Event != "auth" {
+		slog.Warn("WebSocket first message was not auth", "session_id", sessionID)
+		closeUnauthenticated(conn)
+		return false
+	}
+
+	sess, exists := deps.SessionStore.Get(sessionID)
+	if !exists {
+		slog.Warn("Session gone before auth", "session_id", sessionID)
+		closeUnauthenticated(conn)
+		return false
+	}
+
+	if subtle.ConstantTimeCompare([]byte(sess.PIN), []byte(auth.Token)) != 1 {
+		slog.Warn("WebSocket auth failed", "session_id", sessionID)
+		closeUnauthenticated(conn)
+		return false
+	}
+
+	return true
+}
+
+// closeUnauthenticated sends a policy-violation close frame and drops the
+// connection (never log the reason together with a session ID; the UUID is
+// random and unlinkable to a person, the PIN is never logged).
+func closeUnauthenticated(conn *websocket.Conn) {
+	_ = conn.WriteControl(
+		websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "auth required"),
+		time.Now().Add(time.Second),
+	)
+	_ = conn.Close()
 }
