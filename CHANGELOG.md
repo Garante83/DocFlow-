@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-09-15
+
+Final release: identical code base to 1.0.0-rc.1 plus two fixes found
+during test-server deployment.
+
+### Added
+
+- **`server.public_url` configuration** (`DSCAN_SERVER_PUBLIC_URL`): the
+  QR code advertises this base URL instead of the server's own view -
+  essential for container deployments (the auto-detected address is the
+  Docker bridge IP, unreachable from phones) and for reverse-proxy
+  setups; empty keeps LAN IP auto-detection
+
+### Fixed
+
+- **Docker build**: backend stage base image bumped to
+  `golang:1.26-alpine` (go.mod requires >= 1.26.5)
+- **WebSocket origin override in docker-compose.yml** removed (scheme-less
+  values could never match browser origins; built-in defaults cover
+  localhost variants and private-IP origins correctly)
+
+### Validation
+
+- All installation methods validated on a test server (2026-09-15):
+  single binary, manual build, Docker build/run (non-root), docker
+  compose, and operation behind a reverse proxy with
+  `DSCAN_SERVER_PUBLIC_URL`
+
 ## [1.0.0-rc.1] - 2026-09-15
 
 Release candidate: feature-complete, all backend packages green, coverage
@@ -70,9 +98,7 @@ phone over LAN, burn-after-reading, privacy logging verified).
 
 ## [Unreleased]
 
-### Planned
+### Ideas
 
-- Docker runtime validation (image builds structurally; live test
-  pending)
 - Optional PDF export of the user manual (markdown source of truth:
   `docs/manual.md`, English: `docs/manual.en.md`)

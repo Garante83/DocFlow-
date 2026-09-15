@@ -10,7 +10,7 @@
 | 2. CI + Versionierung | ✅ erledigt (2026-09-15, auf privater Gitea: `.gitea/workflows/ci.yml` grün, CHANGELOG.md, Tag `v1.0.0-rc.1`) |
 | 3. Coverage-Lücken schließen | ✅ erledigt (2026-09-15) |
 | 4. Handbuch aktualisieren | ✅ erledigt (2026-09-15) |
-| 5. Docker-Runtime-Validierung | ⬜ offen (verschoben: kein Docker-Zugang auf dem Arbeitsrechner, `golang:1.21` im Dockerfile muss auf Go 1.26 angehoben werden) |
+| 5. Docker-Runtime-Validierung | ✅ erledigt (2026-09-15, Test-Server: Build, non-root-Container, Workflow mit `DSCAN_SERVER_PUBLIC_URL`, zusätzlich Betrieb hinter Reverse-Proxy mit eigener URL bestätigt) |
 
 Nach Aufgabe 1+2 ist das Projekt "veröffentlicht-fähig": getestet,
 versioniert, automatisiert geprüft. Offen bleibt nur noch Docker (optional).
@@ -70,20 +70,29 @@ durch `docs/manual.md` als Markdown-Quelle der Wahrheit ersetzt (deckt
 Tilt-Indikator, i18n, Auto-Config, WS-Auth, Release-Pipeline ab). Ein
 PDF-Export ist optional nachholbar, sobald eine Toolchain verfügbar ist.
 
-## Aufgabe 5: Docker-Runtime-Validierung (~30min, optional) — VERSCHOBEN
+## Aufgabe 5: Docker-Runtime-Validierung — ✅ ERLEDIGT (2026-09-15)
 
-Auf dem Arbeitsrechner ist kein Docker-Zugang möglich (User nicht in der
-docker-Gruppe). Zusätzlich aufgefallen: Das Dockerfile baut mit
-`golang:1.21-alpine`, go.mod verlangt aber Go 1.26.5 - vor der Validierung
-anheben (Basis-Image wählen, das Go 1.26 enthält, z.B. golang:1.26-alpine
-sobald veröffentlicht, oder aktuelles latest).
+Auf dem Test-Server durchgeführt (Commit `526c095` hob die Go-Basis-Image
+auf 1.26 an, `44dffdf` fügte `server.public_url` für den QR-Code hinzu):
+
+1. `docker build` erfolgreich (Multi-Stage: node:22-alpine → golang:1.26-alpine → alpine)
+2. `docker run` → HTTPS auf 8082, non-root (uid 1000), Auto-Zertifikat
+3. Workflow Desktop+Handy im LAN; QR-Code via `DSCAN_SERVER_PUBLIC_URL`
+   auf die Host-Adresse gerichtet (Container-Bridge-IP ist vom Handy aus
+   nicht erreichbar - Legacy-Workaround `FRONTEND_URL` blieb kompatibel)
+4. Betrieb hinter Reverse-Proxy mit eigener URL bestätigt
+5. Damit sind alle Installationsmethoden (Single Binary, manueller Build,
+   Docker, Compose, Reverse-Proxy) validiert
+
+**Akzeptanzkriterien:** ✅ Image startet; Workflow läuft im Container.
 
 ---
 
 ## Empfohlene Reihenfolge
 
-**5 (Docker)** - der einzige offene Punkt (optional, aufgeschoben bis
-Docker auf dem Arbeitsrechner verfügbar ist).
+**Alle Aufgaben erledigt.** Alle Installationsmethoden validiert
+(Bare-Metal, manuell, Docker, Compose, Reverse-Proxy); CI grün; Tag
+`v1.0.0-rc.1` gesetzt. Abschluss: finales `v1.0.0`.
 
 ## Regeln (unverändert gültig, siehe AGENTS.md)
 
