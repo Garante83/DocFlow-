@@ -16,7 +16,7 @@ COPY frontend/dokumentenscanner/ ./
 RUN npm run build
 
 # Stage 2: Build backend binary with embedded frontend
-FROM golang:1.21-alpine AS backend
+FROM golang:1.26-alpine AS backend
 
 WORKDIR /app/backend
 
