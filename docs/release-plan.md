@@ -7,7 +7,7 @@
 | Aufgabe | Status |
 |---------|--------|
 | 1. E2E-Validierung am echten Gerät | ✅ erledigt (2026-09-15, live: 2 komplette Workflows Desktop+Handy, Logs personen-frei) |
-| 2. CI + Versionierung | ✅ erledigt (2026-09-15, auf privater Gitea: `.gitea/workflows/ci.yml`, CHANGELOG.md, Tag `v1.0.0-rc.1`) |
+| 2. CI + Versionierung | ✅ erledigt (2026-09-15, auf privater Gitea: `.gitea/workflows/ci.yml` grün, CHANGELOG.md, Tag `v1.0.0-rc.1`) |
 | 3. Coverage-Lücken schließen | ✅ erledigt (2026-09-15) |
 | 4. Handbuch aktualisieren | ✅ erledigt (2026-09-15) |
 | 5. Docker-Runtime-Validierung | ⬜ offen (verschoben: kein Docker-Zugang auf dem Arbeitsrechner, `golang:1.21` im Dockerfile muss auf Go 1.26 angehoben werden) |
@@ -47,8 +47,13 @@ GitHub - Commit `8051631`:
 - `.gitea/workflows/ci.yml`: Backend-Job (npm ci → frontend-build wegen
   `go:embed` → go build, vet, gofmt-Check, Tests mit Coverage) und
   Frontend-Job (npm ci, type-check, lint:check, vitest)
+- Runner: desktop-runner (act_runner v3.5.0, Host-Mode-Labels
+  `ubuntu-latest:host` etc., systemd-User-Service, kein Docker nötig)
 - `CHANGELOG.md` (Keep-a-Changelog): Tag `v1.0.0-rc.1` gesetzt
   (Release-Kandidat; finales v1.0.0 nach Docker-Validierung)
+- CI-Ergebnis: beide Jobs grün (Erstlauf 2026-09-15); dabei drei
+  Anlaufprobleme gefixt: oxlint-Versionen aligniert (ERESOLVE), gofmt-
+  Schritt-Quoting ($$-Escape aus Make-Syntax), Runner-PATH/Workdir
 
 ---
 
