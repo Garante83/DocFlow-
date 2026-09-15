@@ -264,7 +264,7 @@ function handlePaste(e: ClipboardEvent) {
   border-radius: var(--radius-md);
   outline: none;
   transition: var(--transition);
-  background: white;
+  background: var(--color-surface-solid);
   font-family: 'SF Mono', 'Fira Code', monospace;
   font-weight: 700;
   color: var(--color-text);
@@ -276,7 +276,7 @@ function handlePaste(e: ClipboardEvent) {
 }
 
 .pin-input:disabled {
-  background-color: #f8fafc;
+  background-color: var(--color-surface-input);
   cursor: not-allowed;
   color: var(--color-text-muted);
 }
@@ -290,7 +290,7 @@ function handlePaste(e: ClipboardEvent) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--color-surface);
   backdrop-filter: blur(4px);
   border-radius: var(--radius-md);
 }
@@ -365,7 +365,7 @@ function handlePaste(e: ClipboardEvent) {
 }
 
 .btn-primary:disabled {
-  background: #94a3b8;
+  background: var(--color-text-muted);
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -377,6 +377,6 @@ function handlePaste(e: ClipboardEvent) {
 }
 
 .btn-ghost:hover:not(:disabled) {
-  background: #f1f5f9;
+  background: var(--color-surface-muted);
 }
 </style>

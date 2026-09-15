@@ -166,9 +166,9 @@ function restartScanning() {
   max-width: 500px;
   width: 100%;
   padding: 20px;
-  background: white;
+  background: var(--color-surface-solid);
   border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
 }
 
 .header {
@@ -177,23 +177,23 @@ function restartScanning() {
 
 .header h2 {
   font-size: 1.5rem;
-  color: #2c3e50;
+  color: var(--color-text);
   margin-bottom: 5px;
 }
 
 .info {
-  color: #7f8c8d;
+  color: var(--color-text-secondary);
   font-size: 0.9rem;
 }
 
 .error-message {
-  color: #d32f2f;
+  color: var(--color-error);
   text-align: center;
 }
 
 .retry-btn {
   padding: 8px 16px;
-  background-color: #3498db;
+  background-color: var(--color-info);
   color: white;
   border: none;
   border-radius: 5px;
@@ -213,7 +213,7 @@ function restartScanning() {
   height: 100%;
   overflow: hidden;
   border-radius: 8px;
-  border: 2px solid #ddd;
+  border: 2px solid var(--color-border);
 }
 
 .video-preview {
@@ -239,7 +239,8 @@ function restartScanning() {
   transform: translate(-50%, -50%);
   width: 70%;
   height: 70%;
-  border: 2px solid rgba(52, 152, 219, 0.5);
+  border: 2px solid var(--color-info);
+  opacity: 0.5;
   border-radius: 8px;
 }
 
@@ -252,13 +253,13 @@ function restartScanning() {
   flex-direction: column;
   align-items: center;
   gap: 5px;
-  color: #3498db;
+  color: var(--color-info);
 }
 
 .laser-line {
   width: 80%;
   height: 2px;
-  background: linear-gradient(90deg, transparent, #3498db, transparent);
+  background: linear-gradient(90deg, transparent, var(--color-info), transparent);
   animation: scan 2s linear infinite;
 }
 
@@ -271,9 +272,9 @@ function restartScanning() {
 
 .scan-result {
   padding: 15px;
-  background-color: #e8f5e9;
+  background-color: var(--color-success-bg);
   border-radius: 8px;
-  color: #2e7d32;
+  color: var(--color-success-dark);
   text-align: center;
   word-break: break-all;
 }
@@ -296,18 +297,18 @@ function restartScanning() {
 }
 
 .btn-primary {
-  background-color: #3498db;
+  background-color: var(--color-info);
   color: white;
 }
 
 .btn-secondary {
-  background-color: #ecf0f1;
-  color: #2c3e50;
+  background-color: var(--color-surface-muted);
+  color: var(--color-text);
 }
 
 .no-camera {
   text-align: center;
   padding: 20px;
-  color: #7f8c8d;
+  color: var(--color-text-secondary);
 }
 </style>

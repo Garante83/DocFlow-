@@ -488,7 +488,7 @@ function startNewSession() {
 }
 
 .btn-primary:disabled {
-  background: #94a3b8;
+  background: var(--color-text-muted);
   box-shadow: none;
   cursor: not-allowed;
   transform: none;

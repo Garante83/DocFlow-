@@ -217,12 +217,12 @@ function formatFileSize(bytes: number): string {
 
 .header h2 {
   font-size: 1.5rem;
-  color: #2c3e50;
+  color: var(--color-text);
   margin-bottom: 5px;
 }
 
 .info {
-  color: #7f8c8d;
+  color: var(--color-text-secondary);
   font-size: 0.9rem;
 }
 
@@ -237,8 +237,8 @@ function formatFileSize(bytes: number): string {
 .spinner {
   width: 50px;
   height: 50px;
-  border: 5px solid #f3f3f3;
-  border-top: 5px solid #3498db;
+  border: 5px solid var(--color-border);
+  border-top: 5px solid var(--color-info);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -253,7 +253,7 @@ function formatFileSize(bytes: number): string {
   flex-direction: column;
   align-items: center;
   gap: 15px;
-  color: #d32f2f;
+  color: var(--color-error);
 }
 
 .error-message {
@@ -263,7 +263,7 @@ function formatFileSize(bytes: number): string {
 
 .retry-btn {
   padding: 10px 20px;
-  background-color: #3498db;
+  background-color: var(--color-info);
   color: white;
   border: none;
   border-radius: 5px;
@@ -280,7 +280,7 @@ function formatFileSize(bytes: number): string {
 .pdf-viewer {
   width: 100%;
   height: 400px;
-  border: 2px solid #ddd;
+  border: 2px solid var(--color-border);
   border-radius: 8px;
   overflow: hidden;
   background: white;
@@ -296,7 +296,7 @@ function formatFileSize(bytes: number): string {
   display: flex;
   justify-content: space-between;
   padding: 10px 0;
-  color: #7f8c8d;
+  color: var(--color-text-secondary);
   font-size: 0.9rem;
 }
 
@@ -328,8 +328,8 @@ function formatFileSize(bytes: number): string {
 }
 
 .btn-secondary {
-  background-color: #ecf0f1;
-  color: #2c3e50;
+  background-color: var(--color-surface-muted);
+  color: var(--color-text);
 }
 
 .btn:hover:not(:disabled) {
@@ -343,7 +343,7 @@ function formatFileSize(bytes: number): string {
   align-items: center;
   gap: 15px;
   padding: 40px 0;
-  color: #7f8c8d;
+  color: var(--color-text-secondary);
   text-align: center;
 }
 </style>

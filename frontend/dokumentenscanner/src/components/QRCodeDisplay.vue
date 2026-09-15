@@ -129,7 +129,7 @@ const qrCodeUrl = computed(() => {
 .pin-display {
   text-align: center;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #eef2ff, #faf5ff);
+  background: var(--color-surface-accent);
   border: 1px solid var(--color-primary-light);
   border-radius: var(--radius-md);
   width: 100%;
@@ -148,7 +148,7 @@ const qrCodeUrl = computed(() => {
   font-size: 2.4rem;
   font-weight: 800;
   letter-spacing: 0.35em;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: var(--color-primary-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -167,7 +167,7 @@ const qrCodeUrl = computed(() => {
   align-items: center;
   gap: 8px;
   padding: 6px 14px;
-  background: rgba(99, 102, 241, 0.08);
+  background: var(--color-primary-light);
   border-radius: 20px;
   color: var(--color-primary);
   font-size: 0.85rem;

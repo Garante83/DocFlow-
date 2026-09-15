@@ -856,7 +856,7 @@ onUnmounted(() => {
 .page-item {
   position: relative; width: 80px; height: 100px;
   border: 2px solid var(--color-border); border-radius: var(--radius-sm);
-  overflow: hidden; background: white; cursor: pointer;
+  overflow: hidden; background: var(--color-surface-solid); cursor: pointer;
   transition: var(--transition);
 }
 .page-item:hover { border-color: var(--color-primary); box-shadow: var(--shadow-sm); }
@@ -889,11 +889,11 @@ onUnmounted(() => {
 .choose-btn {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 14px;
   padding: 32px 20px; border: 2px solid var(--color-border); border-radius: var(--radius-md);
-  background: white; cursor: pointer; transition: var(--transition);
+  background: var(--color-surface-solid); cursor: pointer; transition: var(--transition);
 }
 .choose-btn:hover {
   border-color: var(--color-primary);
-  background: linear-gradient(135deg, #eef2ff, #faf5ff);
+  background: var(--color-surface-accent);
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
@@ -1005,12 +1005,12 @@ onUnmounted(() => {
   background: var(--color-primary-hover); transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
 }
-.btn-primary:disabled { background: #94a3b8; box-shadow: none; cursor: not-allowed; }
+.btn-primary:disabled { background: var(--color-text-muted); box-shadow: none; cursor: not-allowed; }
 .btn-secondary {
   background: transparent; color: var(--color-text-secondary);
   border: 1px solid var(--color-border);
 }
-.btn-secondary:hover:not(:disabled) { background: #f1f5f9; }
+.btn-secondary:hover:not(:disabled) { background: var(--color-surface-muted); }
 
 .spinner {
   width: 36px; height: 36px; border: 3px solid var(--color-border);

@@ -1,16 +1,25 @@
 /* Global styles for Dokumentenscanner */
 
 :root {
+  color-scheme: light;
+
   --color-primary: #6366f1;
   --color-primary-hover: #4f46e5;
   --color-primary-light: #e0e7ff;
+  --color-primary-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
   --color-primary-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   --color-success: #10b981;
   --color-success-hover: #059669;
+  --color-success-bg: #e8f5e9;
+  --color-success-dark: #2e7d32;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
+  --color-info: #3498db;
   --color-surface: rgba(255, 255, 255, 0.85);
   --color-surface-solid: #ffffff;
+  --color-surface-input: #f8fafc;
+  --color-surface-muted: #f1f5f9;
+  --color-surface-accent: linear-gradient(135deg, #eef2ff, #faf5ff);
   --color-text: #1e293b;
   --color-text-secondary: #64748b;
   --color-text-muted: #94a3b8;
@@ -25,6 +34,40 @@
   --radius-lg: 20px;
   --radius-xl: 28px;
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dark mode follows the system preference */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --color-primary: #818cf8;
+    --color-primary-hover: #6366f1;
+    --color-primary-light: rgba(129, 140, 248, 0.25);
+    --color-primary-gradient: linear-gradient(135deg, #a5b4fc, #c4b5fd);
+    --color-primary-bg: linear-gradient(135deg, #4338ca 0%, #5b21b6 100%);
+    --color-success: #34d399;
+    --color-success-hover: #10b981;
+    --color-success-bg: rgba(52, 199, 89, 0.15);
+    --color-success-dark: #4ade80;
+    --color-warning: #fbbf24;
+    --color-error: #f87171;
+    --color-info: #5dade2;
+    --color-surface: rgba(30, 41, 59, 0.85);
+    --color-surface-solid: #1e293b;
+    --color-surface-input: #0f172a;
+    --color-surface-muted: #334155;
+    --color-surface-accent: linear-gradient(135deg, #1e1b4b, #3b0764);
+    --color-text: #e2e8f0;
+    --color-text-secondary: #94a3b8;
+    --color-text-muted: #64748b;
+    --color-border: #334155;
+    --color-bg: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f2027 100%);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.55), 0 4px 6px -4px rgba(0, 0, 0, 0.45);
+    --shadow-xl: 0 20px 40px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  }
 }
 
 * {
