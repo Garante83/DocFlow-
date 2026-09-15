@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -101,6 +102,129 @@ func TestCreateOriginChecker(t *testing.T) {
 	req = httptest.NewRequest("GET", "http://localhost:8082", nil)
 	// No Origin header
 	assert.False(t, originChecker(req), "Missing Origin header should be rejected")
+
+	// Test same-origin fallback behind a reverse proxy (public domain)
+	cfg.WebSocket.AllowPrivateIPs = false
+	cfg.WebSocket.AllowedOrigins = []string{} // empty allow-list
+	originChecker = createOriginChecker(cfg)
+
+	// Origin matches Host header -> accept
+	req = httptest.NewRequest("GET", "http://docs.example.com/ws/session/00000000-0000-0000-0000-000000000000", nil)
+	req.Header.Set("Origin", "https://docs.example.com")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	assert.True(t, originChecker(req), "Same-origin via X-Forwarded-Host should be accepted")
+
+	// Origin matches Host header directly (no proxy) -> accept
+	req = httptest.NewRequest("GET", "http://docs.example.com/ws/session/00000000-0000-0000-0000-000000000000", nil)
+	req.Header.Set("Origin", "http://docs.example.com")
+	assert.True(t, originChecker(req), "Same-origin via Host header should be accepted")
+
+	// Origin from different host -> reject (cross-origin)
+	req = httptest.NewRequest("GET", "http://docs.example.com/ws/session/00000000-0000-0000-0000-000000000000", nil)
+	req.Header.Set("Origin", "https://evil.com")
+	assert.False(t, originChecker(req), "Cross-origin request should be rejected")
+
+	// Origin from same host but different port -> reject
+	req = httptest.NewRequest("GET", "http://docs.example.com/ws/session/00000000-0000-0000-0000-000000000000", nil)
+	req.Header.Set("Origin", "http://docs.example.com:8443")
+	assert.False(t, originChecker(req), "Same host with different port should be rejected")
+}
+
+// TestIsSameOrigin tests the isSameOrigin helper
+func TestIsSameOrigin(t *testing.T) {
+	tests := []struct {
+		name     string
+		origin   string
+		host     string
+		xffHost  string
+		xffProto string
+		tls      bool
+		expected bool
+	}{
+		{
+			name:     "origin matches Host header",
+			origin:   "http://docs.example.com",
+			host:     "docs.example.com",
+			expected: true,
+		},
+		{
+			name:     "origin matches Host header with port",
+			origin:   "http://docs.example.com:8082",
+			host:     "docs.example.com:8082",
+			expected: true,
+		},
+		{
+			name:     "origin matches X-Forwarded-Host (https proxy)",
+			origin:   "https://docs.example.com",
+			xffHost:  "docs.example.com",
+			xffProto: "https",
+			expected: true,
+		},
+		{
+			name:     "origin default https port vs forwarded proto https",
+			origin:   "https://docs.example.com",
+			xffHost:  "docs.example.com:443",
+			xffProto: "https",
+			expected: true,
+		},
+		{
+			name:     "different host",
+			origin:   "https://evil.com",
+			xffHost:  "docs.example.com",
+			xffProto: "https",
+			expected: false,
+		},
+		{
+			name:     "different port",
+			origin:   "http://docs.example.com:8443",
+			host:     "docs.example.com",
+			expected: false,
+		},
+		{
+			name:     "scheme mismatch http vs https",
+			origin:   "http://docs.example.com",
+			xffHost:  "docs.example.com",
+			xffProto: "https",
+			expected: false,
+		},
+		{
+			name:     "https origin matches TLS request without proxy",
+			origin:   "https://docs.example.com",
+			host:     "docs.example.com",
+			tls:      true,
+			expected: true,
+		},
+		{
+			name:     "invalid origin",
+			origin:   "not a url",
+			host:     "docs.example.com",
+			expected: false,
+		},
+		{
+			name:     "no host at all",
+			origin:   "http://docs.example.com",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "http://localhost:8082", nil)
+			if tt.tls {
+				req.TLS = &tls.ConnectionState{}
+			}
+			if tt.host != "" {
+				req.Host = tt.host
+			}
+			if tt.xffHost != "" {
+				req.Header.Set("X-Forwarded-Host", tt.xffHost)
+			}
+			if tt.xffProto != "" {
+				req.Header.Set("X-Forwarded-Proto", tt.xffProto)
+			}
+			assert.Equal(t, tt.expected, isSameOrigin(tt.origin, req))
+		})
+	}
 }
 
 // TestParseOrigin tests the parseOrigin function

@@ -107,6 +107,15 @@ func createOriginChecker(cfg *config.Config) func(r *http.Request) bool {
 			}
 		}
 
+		// Same-origin fallback: if the origin matches the request's own host
+		// (Host header or X-Forwarded-Host), the request comes from the very
+		// page the server (or its reverse proxy) serves - accept it. This
+		// makes WebSocket work behind reverse proxies with a public domain
+		// without extra configuration.
+		if isSameOrigin(origin, r) {
+			return true
+		}
+
 		// If private IPs are allowed, check if the origin's IP is private
 		if allowPrivateIPs {
 			// Parse the origin URL to extract host
@@ -123,6 +132,61 @@ func createOriginChecker(cfg *config.Config) func(r *http.Request) bool {
 
 		return false
 	}
+}
+
+// isSameOrigin checks whether the request's Origin matches the host the
+// request was addressed to. Behind a reverse proxy the host is taken from
+// X-Forwarded-Host (set by the proxy), otherwise from the Host header.
+// Origin and host are compared scheme-insensitively: browsers always send
+// the scheme (http/https), the Host header never contains one.
+func isSameOrigin(origin string, r *http.Request) bool {
+	originURL, err := parseOrigin(origin)
+	if err != nil {
+		return false
+	}
+
+	// Determine the target host: prefer X-Forwarded-Host (reverse proxy),
+	// fall back to the Host header. Only the first value is used.
+	host := r.Header.Get("X-Forwarded-Host")
+	if host == "" {
+		host = r.Host
+	}
+	if host == "" {
+		return false
+	}
+
+	hostURL, err := parseOrigin(host)
+	if err != nil {
+		return false
+	}
+
+	if !strings.EqualFold(originURL.Host, hostURL.Host) {
+		return false
+	}
+
+	// Ports must match as well (empty port = default port of the scheme)
+	originPort := originURL.Port
+	if originPort == "" {
+		switch originURL.Scheme {
+		case "https", "wss":
+			originPort = "443"
+		default:
+			originPort = "80"
+		}
+	}
+	hostPort := hostURL.Port
+	if hostPort == "" {
+		switch {
+		case r.Header.Get("X-Forwarded-Proto") == "https":
+			hostPort = "443"
+		case r.TLS != nil:
+			hostPort = "443"
+		default:
+			hostPort = "80"
+		}
+	}
+
+	return originPort == hostPort
 }
 
 // parseOrigin parses an origin string and returns the URL components
