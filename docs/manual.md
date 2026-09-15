@@ -519,7 +519,7 @@ werden.
 | Echtes TLS-Zertifikat | `server.tls_cert_path`/`tls_key_path` setzen (z.B. Let's Encrypt) statt des automatisch generierten Selbstsigniert-Zertifikats |
 | Port | `DSCAN_SERVER_PORT=443` bzw. das Profil `backend/config/config.prod.yaml` als Ausgangspunkt nutzen |
 | Private IPs sperren | `DSCAN_WEB_SOCKET_ALLOW_PRIVATE_IPS=false` - WebSocket-Verbindungen aus privaten Adressräumen ablehnen |
-| Origins fest nadeln | `DSCAN_WEB_SOCKET_ALLOWED_ORIGINS` auf die öffentliche Domain setzen (Default erlaubt nur localhost) |
+| Origins festnageln | `DSCAN_WEB_SOCKET_ALLOWED_ORIGINS` auf die öffentliche Domain setzen (Default erlaubt nur localhost) |
 | Rate-Limiting prüfen | Für öffentliche Instanzen ggf. strenger (`DSCAN_RATE_LIMIT_MAX_REQUESTS`) |
 | Dateigrößen deckeln | `DSCAN_UPLOAD_MAX_FILE_SIZE_MB` moderat halten, um Missbrauch zu erschweren |
 | Reverse-Proxy optional | nginx/Caddy vorschalten (Terminierung, zusätzliche Limits); Proxy darf die WebSocket-Verbindung nicht umbrechen |
