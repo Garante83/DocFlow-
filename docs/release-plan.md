@@ -6,11 +6,14 @@
 
 | Aufgabe | Status |
 |---------|--------|
-| 1. E2E-Validierung am echten Gerät | ⬜ offen (höchste Priorität) |
-| 2. CI + Versionierung | ⬜ offen |
+| 1. E2E-Validierung am echten Gerät | ✅ erledigt (2026-09-15, live: 2 komplette Workflows Desktop+Handy, Logs personen-frei) |
+| 2. CI + Versionierung | ✅ erledigt (2026-09-15, auf privater Gitea: `.gitea/workflows/ci.yml`, CHANGELOG.md, Tag `v1.0.0-rc.1`) |
 | 3. Coverage-Lücken schließen | ✅ erledigt (2026-09-15) |
 | 4. Handbuch aktualisieren | ✅ erledigt (2026-09-15) |
 | 5. Docker-Runtime-Validierung | ⬜ offen (verschoben: kein Docker-Zugang auf dem Arbeitsrechner, `golang:1.21` im Dockerfile muss auf Go 1.26 angehoben werden) |
+
+Nach Aufgabe 1+2 ist das Projekt "veröffentlicht-fähig": getestet,
+versioniert, automatisiert geprüft. Offen bleibt nur noch Docker (optional).
 
 ## Ausgangslage (Snapshot)
 
@@ -26,46 +29,26 @@
 
 ---
 
-## Aufgabe 1: E2E-Validierung am echten Gerät (~30 min) — HÖCHSTE PRIORITÄT
+## Aufgabe 1: E2E-Validierung am echten Gerät — ✅ ERLEDIGT (2026-09-15)
 
-Der WebSocket-Auth-Wechsel (PIN als erste Nachricht statt Query-Parameter) ist
-das größte Design-Änderung des letzten Durchgangs und muss live durchgespielt
-werden:
-
-1. `make release`, Server starten (LAN)
-2. Desktop: Session erstellen, QR-Code erscheint, **kein** PIN im
-   Browser-Network-Tab bei der WS-Verbindung (Pfad ohne `?token=`)
-3. Handy: QR scannen, PIN-Eingabe, Kamera + Tilt-Indikator (Sensor oder
-   Bildanalyse-Fallback je Browser), Upload mehrerer Seiten
-4. Desktop: Seitenzähler aktualisiert sich (WS-Broadcast funktioniert nach Auth)
-5. PDF generieren → Download → Session gelöscht (Burn-after-Reading bestätigen)
-6. Log-Check: keine IP, kein `token=`, kein PIN in der Ausgabe
-
-**Akzeptanzkriterien:** kompletter Workflow läuft; Logs bleiben personen-frei.
+Live durchgeführt (Server lokal, Desktop + Handy im LAN): Session erstellt,
+QR gescannt, PIN-Verifizierung, 4 Uploads, Finalize, PDF-Download,
+Burn-after-Reading. Kein PIN/Query-String/IP im Access-Log. Dabei wurde
+zudem ein Reconnect-Loop-Bug im WS-Client gefunden und behoben
+(Commit `16438ac`).
 
 ---
 
-## Aufgabe 2: CI + Versionierung (~1.5h)
+## Aufgabe 2: CI + Versionierung — ✅ ERLEDIGT (2026-09-15)
 
-**2a. GitHub Actions** (`.github/workflows/ci.yml`):
+Umgesetzt auf der **privaten Gitea** (`gitea.lan`, Gitea Actions) statt
+GitHub - Commit `8051631`:
 
-```yaml
-Backend-Job:  setup-go (1.26), cd backend, go build, go vet, gofmt -l check, go test ./... -coverprofile
-Frontend-Job: setup-node (22), npm ci, npm run type-check, npm run lint:check, npm run test:unit -- --run
-```
-
-Hinweis: `go build`/`go test` im CI brauchen zuerst `make frontend-build`
-(Node >= 22) - Reihenfolge im Workflow beachten (siehe AGENTS.md).
-
-**2b. Git-Tag + CHANGELOG:**
-- `CHANGELOG.md` anlegen (Keep-a-Changelog-Format): Highlight-Einträge
-  i18n, Tilt-Indikator, Single-Binary-Release, Config-System, Privacy-Logging
-- Tag `v1.0.0` setzen (Release-Kandidat) oder `v0.1.0` wenn erst Beta
-
-**2c. Release-Artefakte:** `make release-linux` Binary als GitHub-Release
-anhängen (optional, ~15min)
-
-**Akzeptanzkriterien:** CI grün auf push; Tag existiert; Changelog dokumentiert.
+- `.gitea/workflows/ci.yml`: Backend-Job (npm ci → frontend-build wegen
+  `go:embed` → go build, vet, gofmt-Check, Tests mit Coverage) und
+  Frontend-Job (npm ci, type-check, lint:check, vitest)
+- `CHANGELOG.md` (Keep-a-Changelog): Tag `v1.0.0-rc.1` gesetzt
+  (Release-Kandidat; finales v1.0.0 nach Docker-Validierung)
 
 ---
 
@@ -94,10 +77,8 @@ sobald veröffentlicht, oder aktuelles latest).
 
 ## Empfohlene Reihenfolge
 
-**1 (E2E) → 2 (CI/Tag) → 5 (Docker, verschoben)**
-
-Nach 1+2 ist das Projekt offiziell "veröffentlicht-fähig":
-getestet, versioniert, automatisiert geprüft.
+**5 (Docker)** - der einzige offene Punkt (optional, aufgeschoben bis
+Docker auf dem Arbeitsrechner verfügbar ist).
 
 ## Regeln (unverändert gültig, siehe AGENTS.md)
 
