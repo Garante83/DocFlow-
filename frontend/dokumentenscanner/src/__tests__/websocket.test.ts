@@ -138,6 +138,35 @@ describe('WebSocketClient', () => {
       expect(handler2).toHaveBeenCalledOnce()
     })
 
+    it('should pass flat backend messages (no data object) as payload to handlers', () => {
+      const handler = vi.fn()
+      websocketClient.on('image_added', handler)
+
+      websocketClient.connect('test-session-id')
+      MockWebSocket.instances[0]!.simulateOpen()
+      MockWebSocket.instances[0]!.simulateMessage(
+        JSON.stringify({ event: 'image_added', session_id: 'abc', page_count: 2 })
+      )
+
+      expect(handler).toHaveBeenCalledExactlyOnceWith({
+        session_id: 'abc',
+        page_count: 2,
+      })
+    })
+
+    it('should pass nested data payloads unchanged to handlers', () => {
+      const handler = vi.fn()
+      websocketClient.on('download_request', handler)
+
+      websocketClient.connect('test-session-id')
+      MockWebSocket.instances[0]!.simulateOpen()
+      MockWebSocket.instances[0]!.simulateMessage(
+        JSON.stringify({ event: 'download_request', data: { session_id: 'abc' } })
+      )
+
+      expect(handler).toHaveBeenCalledExactlyOnceWith({ session_id: 'abc' })
+    })
+
     it('should not call handlers for different event types', () => {
       const handler = vi.fn()
       websocketClient.on('image_uploaded', handler)

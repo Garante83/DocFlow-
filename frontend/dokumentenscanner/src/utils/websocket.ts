@@ -146,11 +146,18 @@ class WebSocketClient {
 
   private handleMessage(message: WebSocketMessage): void {
     console.log('Received WebSocket message:', message.event, message.data)
-    
+
+    // Backend-generated events arrive as flat JSON (e.g.
+    // {"event":"image_added","page_count":2}) without a nested "data"
+    // object, while client messages use {"event":...,"data":{...}}.
+    // Normalize both so handlers always receive a payload object.
+    const { event, data, ...rest } = message
+    const payload = data !== undefined ? data : rest
+
     // Emit to all handlers for this event type
-    const handlers = this.eventHandlers.get(message.event)
+    const handlers = this.eventHandlers.get(event)
     if (handlers) {
-      handlers.forEach(handler => handler(message.data))
+      handlers.forEach(handler => handler(payload))
     }
   }
 

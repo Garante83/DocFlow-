@@ -18,7 +18,14 @@ services:
       # auto-detected address is the Docker bridge IP (not reachable
       # from phones). Set it to the host's LAN address:
       # - DSCAN_SERVER_PUBLIC_URL=https://192.168.178.202:8082
-      
+      # Behind a reverse proxy with a domain, point it at the public URL
+      # instead (this is what the QR code advertises to phones):
+      # - DSCAN_SERVER_PUBLIC_URL=https://docflow.example.com
+      # WebSocket origins: same-origin requests behind a reverse proxy are
+      # accepted automatically. Add the proxy domain here as an extra
+      # safety net (comma-separated, scheme + port must match exactly):
+      # - DSCAN_WEB_SOCKET_ALLOWED_ORIGINS=https://docflow.example.com,http://docflow.example.com
+
       # Session configuration
       - DSCAN_SESSION_TIMEOUT=1h
       - DSCAN_SESSION_CLEANUP_INTERVAL=5m

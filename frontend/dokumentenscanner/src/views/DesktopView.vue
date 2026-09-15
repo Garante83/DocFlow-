@@ -58,8 +58,8 @@ async function initializeSession() {
 }
 
 function onImageAdded(data: unknown) {
-  const event = data as { page_count?: number }
-  pageCount.value = event.page_count || pageCount.value + 1
+  const event = data as { page_count?: number } | undefined
+  pageCount.value = event?.page_count || pageCount.value + 1
   currentView.value = 'waiting_pages'
 }
 

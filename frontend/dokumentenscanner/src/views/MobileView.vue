@@ -46,8 +46,8 @@ function handlePINVerified() {
 }
 
 function handlePageAdded(data: unknown) {
-  const event = data as { page_count?: number }
-  pageCount.value = event.page_count || sessionStore.imageCount
+  const event = data as { page_count?: number } | undefined
+  pageCount.value = event?.page_count || sessionStore.imageCount
   sessionStore.setStatus('uploading')
   // Stay in upload view so user can add more pages
 }
