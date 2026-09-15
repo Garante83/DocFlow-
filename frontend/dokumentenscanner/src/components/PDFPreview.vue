@@ -206,9 +206,9 @@ function formatFileSize(bytes: number): string {
   max-width: 800px;
   width: 100%;
   padding: 20px;
-  background: white;
+  background: var(--color-surface-solid);
   border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
 }
 
 .header {

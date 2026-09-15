@@ -976,7 +976,8 @@ onUnmounted(() => {
 .edit-toolbar { display: flex; gap: 10px; }
 .toolbar-btn {
   width: 50px; height: 50px; border: 2px solid var(--color-border); border-radius: 14px;
-  background: white; font-size: 1.4rem; cursor: pointer; transition: var(--transition);
+  background: var(--color-surface-solid); color: var(--color-text);
+  font-size: 1.4rem; cursor: pointer; transition: var(--transition);
   display: flex; align-items: center; justify-content: center;
 }
 .toolbar-btn:hover {
