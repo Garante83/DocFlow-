@@ -15,6 +15,7 @@ import (
 	"log"
 	"log/slog"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -87,13 +88,13 @@ func newRateLimiter(cfg *config.Config) *rateLimiter {
 		stopChan: make(chan struct{}),
 	}
 	// Start cleanup goroutine
-	go rl.cleanup()
+	go rl.cleanup(10 * time.Minute)
 	return rl
 }
 
-// cleanup removes inactive clients every 10 minutes
-func (rl *rateLimiter) cleanup() {
-	ticker := time.NewTicker(10 * time.Minute)
+// cleanup removes inactive clients every interval
+func (rl *rateLimiter) cleanup(interval time.Duration) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -283,25 +284,42 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 2. Set up logger
+	// 2. Set up graceful shutdown signal handling
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	// 3. Run the server until shutdown or fatal error
+	if err := runServer(cfg, quit, nil); err != nil {
+		slog.Error("Server failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+// runServer wires up all components (logger, session store, WebSocket hub,
+// handlers, router, TLS) and blocks until the server is shut down via the
+// quit signal or serving fails. If ln is nil, a TCP listener on the
+// configured port is created; otherwise ln is served instead (used by tests).
+func runServer(cfg *config.Config, quit <-chan os.Signal, ln net.Listener) error {
+	// 1. Set up logger
 	setupLogger(cfg)
 
-	// 3. Initialize session store with config values
+	// 2. Initialize session store with config values
 	sessionStore := session.NewStore()
 	cleanupStop := make(chan struct{})
 	sessionStore.StartCleanup(cfg.Session.CleanupInterval, cleanupStop)
+	defer close(cleanupStop)
 
-	// 4. Initialize WebSocket hub
+	// 3. Initialize WebSocket hub
 	hub := websocket.NewHub()
 	go hub.Run()
 
-	// 5. Initialize handlers with dependencies
+	// 4. Initialize handlers with dependencies
 	handlers.Init(sessionStore, hub, cfg)
 
-	// 6. Set up router
+	// 5. Set up router
 	r := setupRouter(cfg)
 
-	// 7. Configure TLS: config-based or temporary certificate
+	// 6. Configure TLS: config-based or temporary certificate
 	var certFile, keyFile string
 	if cfg.Server.TLSCertPath != "" && cfg.Server.TLSKeyPath != "" {
 		// Production: use certificates from config
@@ -316,42 +334,60 @@ func main() {
 		slog.Info("Using auto-generated self-signed certificate")
 	}
 
-	// 8. Create HTTP server
+	certPair, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return fmt.Errorf("failed to load TLS certificate pair: %w", err)
+	}
+
+	// 7. Create HTTP server
 	srv := &http.Server{
-		Addr:    getPort(cfg),
 		Handler: r,
 		TLSConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
+			MinVersion:   tls.VersionTLS12,
+			Certificates: []tls.Certificate{certPair},
 		},
 		// Suppress net/http connection errors (TLS handshake failures etc.) -
 		// they contain client addresses which must not appear in the logs
 		ErrorLog: log.New(io.Discard, "", 0),
 	}
 
-	// 9. Start graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
+	// 8. Graceful shutdown on quit signal
 	go func() {
 		<-quit
 		slog.Info("Server shutting down...")
-		close(cleanupStop)
-
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-
 		if err := srv.Shutdown(ctx); err != nil {
 			slog.Error("Server forced to shutdown", "error", err)
 		}
 		slog.Info("Server stopped")
 	}()
 
-	// 10. Start server
-	slog.Info("Server starting", "addr", "0.0.0.0"+srv.Addr, "port", cfg.Server.Port)
-	if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
-		slog.Error("Server failed", "error", err)
-		os.Exit(1)
+	// 9. Start listening
+	if ln == nil {
+		var err error
+		ln, err = net.Listen("tcp", getPort(cfg))
+		if err != nil {
+			return fmt.Errorf("failed to listen on %s: %w", getPort(cfg), err)
+		}
 	}
+	defer ln.Close()
+
+	slog.Info("Server starting", "addr", "0.0.0.0"+getPort(cfg), "port", cfg.Server.Port)
+
+	// 10. Serve HTTPS until shutdown or error
+	serveErr := srv.ServeTLS(ln, "", "")
+
+	// If serving failed (not via signal), shut down cleanly; a redundant
+	// Shutdown call after a signal-triggered shutdown is a no-op.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(ctx)
+
+	if serveErr != nil && serveErr != http.ErrServerClosed {
+		return fmt.Errorf("server: %w", serveErr)
+	}
+	return nil
 }
 
 // generateSelfSignedCert creates a temporary self-signed certificate and key.
