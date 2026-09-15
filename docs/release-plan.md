@@ -94,7 +94,7 @@ auf 1.26 an, `44dffdf` fügte `server.public_url` für den QR-Code hinzu):
 (Bare-Metal, manuell, Docker, Compose, Reverse-Proxy); CI grün; Tag
 `v1.0.0-rc.1` gesetzt. Abschluss: finales `v1.0.0`.
 
-## Regeln (unverändert gültig, siehe AGENTS.md)
+## Regeln (unverändert gültig, siehe README "Build & Deploy")
 
 - Eine Aufgabe = ein Commit; Tests vor jedem Commit
 - Privacy-Grundsätze niemals aufweichen (kein IP/PIN-Logging, RAM-only)

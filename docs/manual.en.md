@@ -1,9 +1,8 @@
 # DocFlow - User Manual
 
 *Version: 2026-09-15. This manual is the source documentation for users and
-operators. Architecture details: [map.md](../map.md), configuration in
-detail: [README.md](../README.md) "Configuration", build commands:
-[AGENTS.md](../AGENTS.md). German version: [manual.md](manual.md).*
+operators. Architecture details: [map.md](../map.md), configuration and
+build commands: [README.md](../README.md). German version: [manual.md](manual.md).*
 
 ---
 

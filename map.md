@@ -1,8 +1,8 @@
 # DocFlow - Projekt-Dokumentation
 
 *Zentrale Dokumentation für Architektur, Entwicklung und Betrieb. Stand: 2026-09-13.*
-*Note: This is the German reference documentation. Agent context and build
-commands are in [AGENTS.md](AGENTS.md), configuration in [README.md](README.md).*
+*Note: This is the German reference documentation. Build commands and
+configuration are in [README.md](README.md).*
 
 ---
 
@@ -558,4 +558,4 @@ cd frontend/dokumentenscanner && npx vitest run
 
 ---
 
-*Stand: 2026-09-13. Agent-Kontext und Build-Kommandos: siehe [AGENTS.md](AGENTS.md); Konfiguration: [README.md](README.md) "Configuration".*
+*Stand: 2026-09-13. Build-Kommandos und Konfiguration: [README.md](README.md) "Configuration".*
