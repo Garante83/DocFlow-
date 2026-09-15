@@ -296,6 +296,94 @@ Vorgefertigte Profile liegen in `backend/config/`: `config.yaml` (Standard),
 `config.dev.yaml` (Debug, großzügige Limits), `config.prod.yaml` (Port 443,
 eigene TLS-Zertifikate, private IPs gesperrt).
 
+### YAML-Hierarchie
+
+Die Konfiguration ist als verschachtelte YAML-Struktur organisiert - alle
+ENV-Variablen und Flags sind nur Alternativezugriffe auf dieselben Felder
+(`DSCAN_SERVER_PORT` entspricht z.B. `server.port` in der YAML):
+
+```mermaid
+graph TD
+    root[Config] --> server[Server]
+    root --> session[Session]
+    root --> upload[Upload]
+    root --> pdf[PDF]
+    root --> websocket[WebSocket]
+    root --> logging[Logging]
+    root --> rate_limit[RateLimit]
+
+    server --> port["port: 8082"]
+    server --> host["host: 0.0.0.0"]
+    server --> tls["tls_cert_path / tls_key_path"]
+    session --> timeout["timeout: 1h"]
+    session --> cleanup["cleanup_interval: 5m"]
+    session --> max_failed["max_failed_attempts: 3"]
+    session --> lockout["lockout_duration: 5m"]
+    upload --> max_file_size_mb["max_file_size_mb: 10"]
+    upload --> allowed_types["allowed_types: [jpeg, png, webp]"]
+    pdf --> max_pages["max_pages: 20"]
+    pdf --> jpeg_quality["jpeg_quality: 85"]
+    pdf --> compress_output["compress_output: true"]
+    websocket --> allowed_origins["allowed_origins"]
+    websocket --> allow_private_ips["allow_private_ips: true"]
+    websocket --> deadlines["read_deadline / ping_interval"]
+    logging --> level["level: info"]
+    logging --> format["format: json"]
+    rate_limit --> enabled["enabled: true"]
+    rate_limit --> max_requests["max_requests: 100"]
+    rate_limit --> window_seconds["window_seconds: 60"]
+```
+
+### YAML-Beispiel
+
+Vollständig kommentiert generiert der Server die Datei beim ersten Start;
+die wichtigsten Blöcke sehen so aus:
+
+```yaml
+server:
+  port: "8082"                      # HTTPS-Port
+  host: "0.0.0.0"
+  tls_cert_path: ""                 # leer = automatisch generiertes Zertifikat
+  tls_key_path: ""
+
+session:
+  timeout: 1h                       # Session lebt max. 1 Stunde
+  cleanup_interval: 5m              # Aufräum-Intervall (expired/downloaded)
+  max_failed_attempts: 3            # PIN-Fehlversuche bis zur Sperre
+  lockout_duration: 5m              # Dauer der PIN-Sperre
+
+upload:
+  max_file_size_mb: 10              # Max. Größe pro Bild
+  allowed_types:                    # MIME-Types
+    - "image/jpeg"
+    - "image/png"
+    - "image/webp"
+
+pdf:
+  max_pages: 20                     # Max. Seiten pro PDF
+  jpeg_quality: 85                  # JPEG-Kompression (1-100)
+  compress_output: true             # JPEG-Kompression aktiv
+
+websocket:
+  read_deadline: 60s                # Lese-Timeout pro Verbindung
+  ping_interval: 30s                # Keep-Alive-Pings
+  allowed_origins:                  # Nur diese Origins dürfen verbinden
+    - "https://localhost:8082"
+    - "http://localhost:8082"
+    - "https://127.0.0.1:8082"
+    - "http://127.0.0.1:8082"
+  allow_private_ips: true           # LAN-Zugriff erlauben
+
+logging:
+  level: "info"                     # debug | info | warn | error
+  format: "json"                    # json | text
+
+rate_limit:
+  enabled: true
+  max_requests: 100                 # pro Zeitfenster
+  window_seconds: 60
+```
+
 ---
 
 ## 5. Sicherheit & Datenschutz
