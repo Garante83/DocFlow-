@@ -1,11 +1,12 @@
 package session
 
 import (
-	"crypto/rand"
+	crypto_rand "crypto/rand"
 	"crypto/subtle"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,10 +37,14 @@ var ErrPINLocked = errors.New("session is temporarily locked due to too many fai
 // ErrInvalidPIN is returned when the provided PIN is incorrect.
 var ErrInvalidPIN = errors.New("invalid PIN")
 
+// randReader is the randomness source for PIN generation.
+// It is a package variable so tests can inject a deterministic reader.
+var randReader io.Reader = crypto_rand.Reader
+
 // GeneratePIN generates a 6-digit PIN.
 func GeneratePIN() string {
 	var n uint32
-	if err := binary.Read(rand.Reader, binary.LittleEndian, &n); err != nil {
+	if err := binary.Read(randReader, binary.LittleEndian, &n); err != nil {
 		// Fallback to a less secure method if crypto/rand fails
 		n = uint32(time.Now().UnixNano() % 1000000)
 	}
