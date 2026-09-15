@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (build, vet, fmt, test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: https://gitea.com/actions/checkout@v4
+
+      - name: Set up Node
+        uses: https://gitea.com/actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend/dokumentenscanner
+
+      # go:embed needs the built frontend before any go build/test
+      - name: Build frontend (embedded assets)
+        run: make frontend-build
+        working-directory: backend
+
+      - name: Set up Go
+        uses: https://gitea.com/actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Build
+        run: go build ./...
+        working-directory: backend
+
+      - name: Vet
+        run: go vet ./...
+        working-directory: backend
+
+      - name: gofmt check
+        run: test -z "$$(gofmt -l .)" || (echo "Files need formatting:" && gofmt -l . && exit 1)
+        working-directory: backend
+
+      - name: Test with coverage
+        run: go test ./... -coverprofile=coverage.out -covermode=atomic
+        working-directory: backend
+
+  frontend:
+    name: Frontend (typecheck, lint, test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: https://gitea.com/actions/checkout@v4
+
+      - name: Set up Node
+        uses: https://gitea.com/actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/dokumentenscanner/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend/dokumentenscanner
+
+      - name: Type check
+        run: npm run type-check
+        working-directory: frontend/dokumentenscanner
+
+      - name: Lint
+        run: npm run lint:check
+        working-directory: frontend/dokumentenscanner
+
+      - name: Unit tests
+        run: npm run test:unit -- --run
+        working-directory: frontend/dokumentenscanner
