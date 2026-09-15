@@ -141,6 +141,7 @@ filesystems the server continues with built-in defaults.
 |----------|-------------|---------|-------------|
 | `DSCAN_SERVER_PORT` | `server.port` | `8082` | Server port |
 | `DSCAN_SERVER_HOST` | `server.host` | `0.0.0.0` | Server host |
+| `DSCAN_SERVER_PUBLIC_URL` | `server.public_url` | empty | Public base URL shown in the QR code (set in containers/behind a proxy; empty = LAN IP auto-detect) |
 | `DSCAN_SERVER_TLS_CERT_PATH` | `server.tls_cert_path` | empty | TLS cert (empty = auto self-signed) |
 | `DSCAN_SERVER_TLS_KEY_PATH` | `server.tls_key_path` | empty | TLS key |
 | `DSCAN_SESSION_TIMEOUT` | `session.timeout` | `1h` | Session lifetime |

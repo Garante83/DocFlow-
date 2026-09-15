@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -18,8 +19,18 @@ const (
 	QRCodeLevel = qrcode.Medium
 )
 
-// getFrontendURL returns the frontend URL from environment or auto-detects LAN IP
+// getFrontendURL returns the base URL advertised in the QR code.
+// Priority: config server.public_url > legacy FRONTEND_URL env > LAN IP auto-detect.
+// A public URL is essential when the server runs behind a reverse proxy or in a
+// container, because the auto-detected address is then not reachable from
+// outside (reverse proxy address / Docker bridge IP).
 func getFrontendURL() string {
+	if deps := getDeps(); deps != nil && deps.Config != nil {
+		if url := deps.Config.Server.PublicURL; url != "" {
+			return strings.TrimSuffix(url, "/")
+		}
+	}
+
 	if url := os.Getenv("FRONTEND_URL"); url != "" {
 		return url
 	}
@@ -29,13 +40,12 @@ func getFrontendURL() string {
 	return "https://" + ip + port
 }
 
-// getDefaultPort returns the server port from environment or default
+// getDefaultPort returns the configured server port
 func getDefaultPort() string {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8082"
+	if deps := getDeps(); deps != nil && deps.Config != nil && deps.Config.Server.Port != "" {
+		return ":" + deps.Config.Server.Port
 	}
-	return ":" + port
+	return ":8082"
 }
 
 // getLocalIP detects the LAN IP by creating a UDP connection to an external address

@@ -48,7 +48,7 @@ func setupTestRouter(t testing.TB) *gin.Engine {
 	return router
 }
 
-// TestGetFrontendURL tests the getFrontendURL function
+// TestGetFrontendURL tests the getFrontendURL priority chain
 func TestGetFrontendURL(t *testing.T) {
 	// Save old env
 	oldURL := os.Getenv("FRONTEND_URL")
@@ -60,40 +60,49 @@ func TestGetFrontendURL(t *testing.T) {
 		}
 	}()
 
-	// Test with FRONTEND_URL set
-	os.Setenv("FRONTEND_URL", "https://custom.frontend.com")
-	url := getFrontendURL()
-	assert.Equal(t, "https://custom.frontend.com", url)
+	initWithConfig := func(cfg *config.Config) {
+		store := session.NewStore()
+		hub := ws.NewHub()
+		go hub.Run()
+		t.Cleanup(func() { hub.Stop() })
+		Init(store, hub, cfg)
+	}
 
-	// Test without FRONTEND_URL (auto-detect)
+	// Priority 1: config server.public_url (also wins over legacy env,
+	// trailing slash is trimmed)
+	initWithConfig(func() *config.Config {
+		c := config.DefaultConfig()
+		c.Server.PublicURL = "https://192.168.1.50:8082/"
+		return c
+	}())
+	os.Setenv("FRONTEND_URL", "https://legacy.example.com")
+	assert.Equal(t, "https://192.168.1.50:8082", getFrontendURL())
+
+	// Priority 2: legacy FRONTEND_URL env (config unset)
+	initWithConfig(config.DefaultConfig())
+	assert.Equal(t, "https://legacy.example.com", getFrontendURL())
+
+	// Priority 3: LAN IP auto-detection (both unset)
 	os.Unsetenv("FRONTEND_URL")
-	url = getFrontendURL()
-	// Should return LAN IP + port
+	url := getFrontendURL()
 	assert.NotEmpty(t, url)
 	assert.Contains(t, url, "https://")
 }
 
 // TestGetDefaultPort tests the getDefaultPort function
 func TestGetDefaultPort(t *testing.T) {
-	// Save old env
-	oldPort := os.Getenv("PORT")
-	defer func() {
-		if oldPort != "" {
-			os.Setenv("PORT", oldPort)
-		} else {
-			os.Unsetenv("PORT")
-		}
-	}()
+	// Default config: default port
+	assert.Equal(t, ":8082", getDefaultPort())
 
-	// Test with PORT set
-	os.Setenv("PORT", "9090")
-	port := getDefaultPort()
-	assert.Equal(t, ":9090", port)
-
-	// Test without PORT (default)
-	os.Unsetenv("PORT")
-	port = getDefaultPort()
-	assert.Equal(t, ":8082", port)
+	// Configured port is used
+	store := session.NewStore()
+	hub := ws.NewHub()
+	go hub.Run()
+	t.Cleanup(func() { hub.Stop() })
+	cfg := config.DefaultConfig()
+	cfg.Server.Port = "9090"
+	Init(store, hub, cfg)
+	assert.Equal(t, ":9090", getDefaultPort())
 }
 
 // TestGetLocalIP tests the getLocalIP function

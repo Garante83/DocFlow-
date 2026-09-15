@@ -158,6 +158,7 @@ func TestLoadConfig_WithAllEnvVars(t *testing.T) {
 	// Save old env vars
 	oldPort := os.Getenv("DSCAN_SERVER_PORT")
 	oldHost := os.Getenv("DSCAN_SERVER_HOST")
+	oldPublicURL := os.Getenv("DSCAN_SERVER_PUBLIC_URL")
 	oldMaxSize := os.Getenv("DSCAN_UPLOAD_MAX_FILE_SIZE_MB")
 	oldLevel := os.Getenv("DSCAN_LOGGING_LEVEL")
 
@@ -165,6 +166,7 @@ func TestLoadConfig_WithAllEnvVars(t *testing.T) {
 	defer func() {
 		os.Unsetenv("DSCAN_SERVER_PORT")
 		os.Unsetenv("DSCAN_SERVER_HOST")
+		os.Unsetenv("DSCAN_SERVER_PUBLIC_URL")
 		os.Unsetenv("DSCAN_UPLOAD_MAX_FILE_SIZE_MB")
 		os.Unsetenv("DSCAN_LOGGING_LEVEL")
 		if oldPort != "" {
@@ -172,6 +174,9 @@ func TestLoadConfig_WithAllEnvVars(t *testing.T) {
 		}
 		if oldHost != "" {
 			os.Setenv("DSCAN_SERVER_HOST", oldHost)
+		}
+		if oldPublicURL != "" {
+			os.Setenv("DSCAN_SERVER_PUBLIC_URL", oldPublicURL)
 		}
 		if oldMaxSize != "" {
 			os.Setenv("DSCAN_UPLOAD_MAX_FILE_SIZE_MB", oldMaxSize)
@@ -184,6 +189,7 @@ func TestLoadConfig_WithAllEnvVars(t *testing.T) {
 	// Set env vars
 	os.Setenv("DSCAN_SERVER_PORT", "9999")
 	os.Setenv("DSCAN_SERVER_HOST", "127.0.0.1")
+	os.Setenv("DSCAN_SERVER_PUBLIC_URL", "https://10.0.0.5:8082")
 	os.Setenv("DSCAN_UPLOAD_MAX_FILE_SIZE_MB", "20")
 	os.Setenv("DSCAN_LOGGING_LEVEL", "debug")
 
@@ -191,6 +197,7 @@ func TestLoadConfig_WithAllEnvVars(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "9999", cfg.Server.Port)
 	assert.Equal(t, "127.0.0.1", cfg.Server.Host)
+	assert.Equal(t, "https://10.0.0.5:8082", cfg.Server.PublicURL)
 	assert.Equal(t, 20, cfg.Upload.MaxFileSizeMB)
 	assert.Equal(t, "debug", cfg.Logging.Level)
 }

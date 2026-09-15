@@ -24,6 +24,7 @@ type Config struct {
 	Server struct {
 		Port        string `mapstructure:"port" json:"port"`
 		Host        string `mapstructure:"host" json:"host"`
+		PublicURL   string `mapstructure:"public_url" json:"public_url"`
 		TLSCertPath string `mapstructure:"tls_cert_path" json:"tls_cert_path"`
 		TLSKeyPath  string `mapstructure:"tls_key_path" json:"tls_key_path"`
 	} `mapstructure:"server" json:"server"`
@@ -72,6 +73,7 @@ func DefaultConfig() *Config {
 	// Server
 	cfg.Server.Port = "8082"
 	cfg.Server.Host = "0.0.0.0"
+	cfg.Server.PublicURL = ""
 	cfg.Server.TLSCertPath = ""
 	cfg.Server.TLSKeyPath = ""
 
@@ -297,6 +299,9 @@ func bindEnvVars(v *viper.Viper) {
 	}
 	if keyPath := os.Getenv("DSCAN_SERVER_TLS_KEY_PATH"); keyPath != "" {
 		v.Set("server.tls_key_path", keyPath)
+	}
+	if publicURL := os.Getenv("DSCAN_SERVER_PUBLIC_URL"); publicURL != "" {
+		v.Set("server.public_url", publicURL)
 	}
 
 	// Session

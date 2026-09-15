@@ -255,13 +255,20 @@ make run              # HTTPS on port 8082
 
 ```bash
 docker build -t docflow .
-docker run -p 8082:8082 docflow
+docker run -p 8082:8082 \
+  -e DSCAN_SERVER_PUBLIC_URL=https://<server-ip>:8082 \
+  docflow
 ```
 
 The image is multi-stage (Node → Go → Alpine) and runs with an
-unprivileged user. Note: the Docker variant is structurally complete but
-has not yet been validated on a running system (see
-`docs/release-plan.md`, task 5).
+unprivileged user. **Important:** `DSCAN_SERVER_PUBLIC_URL` must point to
+the host's LAN address - the QR code contains the address the server sees
+for itself, and inside a container that is the internal Docker bridge IP,
+unreachable from the phone. The same applies when running behind a
+reverse proxy (use the proxy address). Without the value, LAN IP
+auto-detection applies (bare-metal operation). Note: the Docker variant
+was validated on a test server on 2026-09-15 (image build, container
+operation, workflow).
 
 ---
 
@@ -515,6 +522,7 @@ without turning into an open mailbox.
 |---------|----------------|
 | Real TLS certificate | Set `server.tls_cert_path`/`tls_key_path` (e.g. Let's Encrypt) instead of the auto-generated self-signed certificate |
 | Port | `DSCAN_SERVER_PORT=443`, or use the profile `backend/config/config.prod.yaml` as a starting point |
+| Public URL | Set `DSCAN_SERVER_PUBLIC_URL=https://<public-address>` when the instance runs in a container, behind a reverse proxy or under a dedicated domain name - the QR code must contain the address reachable from the phone |
 | Lock out private IPs | `DSCAN_WEB_SOCKET_ALLOW_PRIVATE_IPS=false` - reject WebSocket connections from private address ranges |
 | Pin origins | Set `DSCAN_WEB_SOCKET_ALLOWED_ORIGINS` to the public domain (default allows localhost only) |
 | Review rate limiting | For public instances consider stricter values (`DSCAN_RATE_LIMIT_MAX_REQUESTS`) |
