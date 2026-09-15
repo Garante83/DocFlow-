@@ -1,6 +1,16 @@
 # Release-Plan - DocFlow zur Veröffentlichung
 
-*Stand: 2026-09-13. Nachfolger des ursprünglichen Projektplans (Phase 0-12 alle abgeschlossen).*
+*Stand: 2026-09-15. Nachfolger des ursprünglichen Projektplans (Phase 0-12 alle abgeschlossen).*
+
+## Status
+
+| Aufgabe | Status |
+|---------|--------|
+| 1. E2E-Validierung am echten Gerät | ⬜ offen (höchste Priorität) |
+| 2. CI + Versionierung | ⬜ offen |
+| 3. Coverage-Lücken schließen | ✅ erledigt (2026-09-15) |
+| 4. Handbuch aktualisieren | ✅ erledigt (2026-09-15) |
+| 5. Docker-Runtime-Validierung | ⬜ offen (verschoben: kein Docker-Zugang auf dem Arbeitsrechner, `golang:1.21` im Dockerfile muss auf Go 1.26 angehoben werden) |
 
 ## Ausgangslage (Snapshot)
 
@@ -59,51 +69,34 @@ anhängen (optional, ~15min)
 
 ---
 
-## Aufgabe 3: Coverage-Lücken schließen (~1.5h)
+## Aufgabe 3: Coverage-Lücken schließen — ✅ ERLEDIGT (2026-09-15)
 
-Fokus auf die zwei schwächsten Pakete:
+Umgesetzt in Commits `b0d5c6e` (session) und `c9f89ae` (cmd/server,
+runServer-Refactoring). Aktuelle Coverage: session 98.4%, cmd/server 81.9%,
+Gesamtprojekt ~85%. Main()-Einstiegspunkt bewusst ungetestet.
 
-- `internal/session` (59.4%): Tests für Cleanup-Goroutine (expired/downloaded/
-  active), TOCTOU-`UpdateFunc`, PIN-Hashing-Grenzfälle
-- `cmd/server` (55.2%): Helper-Tests (setupLogger-Formate, preScanConfigPath
-  Varianten - teils vorhanden), ggf. `runServer`-Einstieg über httptest
+## Aufgabe 4: PDF-Handbuch aktualisieren — ✅ ERLEDIGT (2026-09-15)
 
-**Akzeptanzkriterien:** beide Pakete > 75%, Gesamtprojekt > 80%.
+Umgesetzt in Commit `e9684fc`: Das veraltete Juli-PDF wurde entfernt und
+durch `docs/manual.md` als Markdown-Quelle der Wahrheit ersetzt (deckt
+Tilt-Indikator, i18n, Auto-Config, WS-Auth, Release-Pipeline ab). Ein
+PDF-Export ist optional nachholbar, sobald eine Toolchain verfügbar ist.
 
----
+## Aufgabe 5: Docker-Runtime-Validierung (~30min, optional) — VERSCHOBEN
 
-## Aufgabe 4: PDF-Handbuch aktualisieren (~2h, optional)
-
-`docs/Dokumentenscanner-Dokumentation.pdf` stammt vom Juli-Stand und kennt
-nicht: Tilt-Indikator, Mehrsprachigkeit, Auto-Config/`--config`, neue
-WS-Auth, Release-Pipeline.
-
-Quelle der Wahrheit: `map.md` (Architektur), `README.md` (Betrieb),
-`AGENTS.md` (Kommandos). PDF neu generieren oder Handbuch als Markdown in
-`docs/` pflegen und PDF nur als Export.
-
-**Akzeptanzkriterien:** Handbuch deckt alle Nutzer-Features ab; Datum aktualisiert.
-
----
-
-## Aufgabe 5: Docker-Runtime-Validierung (~30min, optional)
-
-Dockerfile ist Multi-Stage (node → golang → alpine), aber nie live gelaufen:
-
-1. `docker build -t docflow .`
-2. `docker run` → HTTPS auf 8082 erreichbar, Auto-Config funktioniert im
-   Container (read-only-FS-Fallback prüfen)
-3. `docker-compose up` → Volume-Mount `./backend/config` verhält sich korrekt
-
-**Akzeptanzkriterien:** Image startet; Workflow läuft im Container.
+Auf dem Arbeitsrechner ist kein Docker-Zugang möglich (User nicht in der
+docker-Gruppe). Zusätzlich aufgefallen: Das Dockerfile baut mit
+`golang:1.21-alpine`, go.mod verlangt aber Go 1.26.5 - vor der Validierung
+anheben (Basis-Image wählen, das Go 1.26 enthält, z.B. golang:1.26-alpine
+sobald veröffentlicht, oder aktuelles latest).
 
 ---
 
 ## Empfohlene Reihenfolge
 
-**1 (E2E) → 2 (CI/Tag) → 3 (Coverage) → 5 (Docker) → 4 (Handbuch)**
+**1 (E2E) → 2 (CI/Tag) → 5 (Docker, verschoben)**
 
-Gesamt: ~6h. Nach 1+2 ist das Projekt offiziell "veröffentlicht-fähig":
+Nach 1+2 ist das Projekt offiziell "veröffentlicht-fähig":
 getestet, versioniert, automatisiert geprüft.
 
 ## Regeln (unverändert gültig, siehe AGENTS.md)
