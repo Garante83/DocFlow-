@@ -240,6 +240,99 @@ describe('WebSocketClient', () => {
       expect(MockWebSocket.instances).toHaveLength(2)
     })
 
+    it('should NOT reconnect after deliberate disconnect()', async () => {
+      const { useSessionStore } = await import('../stores/sessionStore')
+      const store = useSessionStore()
+      store.setSessionID('test-session-id')
+
+      websocketClient.connect('test-session-id')
+      MockWebSocket.instances[0]!.simulateOpen()
+
+      websocketClient.disconnect()
+
+      // No reconnect may fire - neither immediately nor later
+      vi.advanceTimersByTime(60000)
+      expect(MockWebSocket.instances).toHaveLength(1)
+    })
+
+    it('should NOT let the async close of a replaced socket trigger a reconnect', async () => {
+      const { useSessionStore } = await import('../stores/sessionStore')
+      const store = useSessionStore()
+      store.setSessionID('test-session-id')
+
+      websocketClient.connect('session-1')
+      const firstWs = MockWebSocket.instances[0]!
+      firstWs.simulateOpen()
+
+      // connect() replaces the socket; the old socket's close event arrives
+      // asynchronously AFTER the new connection already exists
+      websocketClient.connect('session-2')
+      expect(firstWs.readyState).toBe(3)
+
+      // The stale close event must not schedule a reconnect
+      vi.advanceTimersByTime(60000)
+      expect(MockWebSocket.instances).toHaveLength(2)
+    })
+
+    it('should reconnect with exponential backoff', async () => {
+      const { useSessionStore } = await import('../stores/sessionStore')
+      const store = useSessionStore()
+      store.setSessionID('test-session-id')
+
+      websocketClient.connect('test-session-id')
+
+      // 1st unexpected close: reconnect after 3s (2^0 * 3000)
+      const ws1 = MockWebSocket.instances[0]!
+      ws1.readyState = 3
+      ws1.onclose?.(new CloseEvent('close', { code: 1006 }))
+      vi.advanceTimersByTime(2999)
+      expect(MockWebSocket.instances).toHaveLength(1)
+      vi.advanceTimersByTime(1)
+      expect(MockWebSocket.instances).toHaveLength(2)
+
+      // 2nd unexpected close: reconnect after 6s (2^1 * 3000)
+      const ws2 = MockWebSocket.instances[1]!
+      ws2.readyState = 3
+      ws2.onclose?.(new CloseEvent('close', { code: 1006 }))
+      vi.advanceTimersByTime(5999)
+      expect(MockWebSocket.instances).toHaveLength(2)
+      vi.advanceTimersByTime(1)
+      expect(MockWebSocket.instances).toHaveLength(3)
+
+      // 3rd unexpected close: reconnect after 12s (2^2 * 3000)
+      const ws3 = MockWebSocket.instances[2]!
+      ws3.readyState = 3
+      ws3.onclose?.(new CloseEvent('close', { code: 1006 }))
+      vi.advanceTimersByTime(11999)
+      expect(MockWebSocket.instances).toHaveLength(3)
+      vi.advanceTimersByTime(1)
+      expect(MockWebSocket.instances).toHaveLength(4)
+    })
+
+    it('should stop reconnecting after max attempts', async () => {
+      const { useSessionStore } = await import('../stores/sessionStore')
+      const store = useSessionStore()
+      store.setSessionID('test-session-id')
+
+      websocketClient.connect('test-session-id')
+      // attempts: 5 reconnects after 5 unexpected closes, then no more
+      // delays: 3s, 6s, 12s, 24s, 48s (2^0..2^4 * 3000)
+      for (let i = 0; i < 5; i++) {
+        const ws = MockWebSocket.instances[i]!
+        ws.readyState = 3
+        ws.onclose?.(new CloseEvent('close', { code: 1006 }))
+        vi.advanceTimersByTime(3000 * Math.pow(2, i))
+      }
+      expect(MockWebSocket.instances).toHaveLength(6)
+
+      // 6th close must not schedule anything
+      const ws6 = MockWebSocket.instances[5]!
+      ws6.readyState = 3
+      ws6.onclose?.(new CloseEvent('close', { code: 1006 }))
+      vi.advanceTimersByTime(60000)
+      expect(MockWebSocket.instances).toHaveLength(6)
+    })
+
     it('should emit status_update disconnected on close', () => {
       const handler = vi.fn()
       websocketClient.on('status_update', handler)

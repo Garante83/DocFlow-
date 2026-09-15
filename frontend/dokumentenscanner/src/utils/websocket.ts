@@ -37,9 +37,11 @@ class WebSocketClient {
   private eventHandlers: Map<WebSocketEventType, ((data: unknown) => void)[]> = new Map()
   private sessionStore = useSessionStore()
   private authToken: string = ''
+  private closingSocket: WebSocket | null = null
+  private reconnectTimer: number | null = null
 
   connect(sessionID: string, token?: string): void {
-    // Close existing connection if any
+    // Close existing connection if any (without triggering a reconnect)
     this.disconnect()
     this.authToken = token || this.sessionStore.pin || ''
 
@@ -68,15 +70,26 @@ class WebSocketClient {
       this.socket.onclose = (event: CloseEvent) => {
         console.log(`WebSocket connection closed: code=${event.code}, reason=${event.reason}`)
         this.emitEvent('status_update', { status: 'disconnected' })
-        
-        // Attempt to reconnect
+
+        // Deliberate disconnects (via disconnect()) must never trigger a
+        // reconnect. Compare by socket reference: the close event of a
+        // replaced socket can arrive asynchronously after a new connection
+        // has already been opened.
+        if (this.closingSocket !== null && event.target === this.closingSocket) {
+          this.closingSocket = null
+          return
+        }
+
+        // Reconnect with exponential backoff on real connection losses
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
-          setTimeout(() => {
+          const delay = this.reconnectTimeout * Math.pow(2, this.reconnectAttempts)
+          this.reconnectTimer = window.setTimeout(() => {
+            this.reconnectTimer = null
             if (this.sessionStore.sessionID) {
               this.reconnectAttempts++
               this.connect(this.sessionStore.sessionID)
             }
-          }, this.reconnectTimeout)
+          }, delay)
         }
       }
 
@@ -92,10 +105,17 @@ class WebSocketClient {
 
   disconnect(): void {
     if (this.socket) {
+      this.closingSocket = this.socket
       this.socket.close()
       this.socket = null
     }
-    this.reconnectAttempts = 0
+    // reconnectAttempts is deliberately NOT reset here: connect() goes
+    // through disconnect(), and resetting here would zero the backoff on
+    // every reconnect. onopen resets it once a connection is established.
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
   }
 
   on(event: WebSocketEventType, handler: (data: unknown) => void): void {
