@@ -41,7 +41,14 @@ jobs:
         working-directory: backend
 
       - name: gofmt check
-        run: test -z "$$(gofmt -l .)" || (echo "Files need formatting:" && gofmt -l . && exit 1)
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Files need formatting:"
+            echo "$unformatted"
+            exit 1
+          fi
+          echo "gofmt check passed"
         working-directory: backend
 
       - name: Test with coverage
