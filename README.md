@@ -3,18 +3,74 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go&logoColor=white)](https://golang.org)
 [![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D?style=flat&logo=vuedotjs&logoColor=white)](https://vuejs.org)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](.github/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-~85%25-brightgreen)](docs/release-plan.md)
 
-Web-based document scanner: Desktop shows QR code, phone scans and uploads images, desktop generates PDF.
+**Scan documents with your phone, download a PDF on your desktop - without
+any cloud.** DocFlow is a self-hosted document scanner for your own
+hardware: the desktop shows a QR code, the phone scans it, photographs the
+documents page by page, and the server assembles a multi-page PDF - in
+seconds, on your own machine.
+
+Your documents never leave your network. Nothing is stored on disk, no
+account is needed, and everything is wiped from memory the moment you
+download the PDF.
+
+<!-- Screenshots: drop files into docs/img/ and adjust paths
+<p align="center">
+  <img src="docs/img/desktop.png" width="45%" alt="Desktop view: QR code and PIN">
+  &nbsp;
+  <img src="docs/img/mobile.jpg" width="25%" alt="Mobile view: camera and upload">
+</p>
+-->
+
+## Why DocFlow?
+
+Mobile scanner apps send your documents to cloud servers you don't control.
+DocFlow flips the model:
+
+- **Your hardware, your data** - runs on a Raspberry Pi, a NAS, or any
+  machine you control; documents exist only in RAM and are deleted the
+  moment the PDF is downloaded (burn-after-reading)
+- **No accounts, no apps** - the phone needs only a browser; connection is
+  one QR scan plus a 6-digit PIN
+- **Zero cloud, zero telemetry** - no external resources are loaded,
+  nothing is tracked, nothing leaves your network (unless you decide to
+  host it publicly)
+- **Ready in minutes** - a single binary (or one `docker run`) and you
+  have a working scanner station
+
+Typical uses: digitizing receipts, contracts, and letters at home;
+a shared scan station for a small office; an air-gapped document workflow
+that must never touch a third-party cloud.
+
+## How it works
+
+```mermaid
+flowchart LR
+    D[Desktop<br/>QR code] -->|phone scans| P[Phone<br/>camera + crop + rotate]
+    P -->|uploads| S[Your server<br/>RAM only]
+    S -->|PDF| D
+    D -->|download| W[PDF saved]
+    W -.->|session deleted| X[Nothing left on the server]
+```
+
+1. **Desktop:** open `https://<server>:8082` - a QR code and PIN appear
+2. **Phone:** scan, enter the PIN, take photos (rotate/crop as needed)
+3. **Desktop:** download the finished PDF - the session is deleted
+   automatically
 
 ## Features
 
 - **Session Management** - Temporary sessions with 6-digit PIN and configurable timeout
-- **QR Code Connection** - Automatic LAN IP detection for easy connection
+- **QR Code Connection** - Automatic LAN IP detection (public URL override for containers/proxies)
 - **Multi-Page Upload** - Multiple photos per session, editable (rotate, crop)
-- **Camera Angle Indicator** - Sensor-based tilt hint with visual frame-analysis fallback
+- **Camera Angle Indicator** - Sensor-based tilt hint with visual frame-analysis fallback that works in every browser
 - **PDF Conversion** - Server-side multi-page PDF with JPEG compression (85%)
-- **WebSocket Communication** - Real-time updates between desktop and mobile (PIN auth via first message, never in URLs)
+- **Real-Time Updates** - WebSocket communication between desktop and mobile (PIN auth via first message, never in URLs)
 - **Burn-after-Reading** - Session is deleted after PDF download
+- **Dark Mode** - Follows the system preference automatically
+- **Multilingual** - German and English UI, chosen from the browser language
 - **HTTPS** - Runtime-generated self-signed TLS certificate (or own certs via config)
 - **Privacy by Design** - RAM-only processing, no IP/PIN logging, configurable deployment
 
@@ -29,24 +85,7 @@ Web-based document scanner: Desktop shows QR code, phone scans and uploads image
 
 ## Quick Start
 
-```bash
-# Backend
-cd backend
-make deps        # Download dependencies
-make build       # Build binary
-make run         # Start HTTPS server on port 8082
-
-# Frontend (development)
-cd frontend/dokumentenscanner
-npm install
-npm run dev      # Dev server with hot reload
-```
-
-Server: `https://localhost:8082`
-
-## Build & Deploy
-
-### Single Binary (recommended)
+### Single binary (recommended)
 
 ```bash
 # From project root: builds frontend, embeds it, compiles everything
@@ -56,9 +95,32 @@ make release
 cd backend && ./docflow
 ```
 
-The binary embeds the complete frontend (Vue SPA) and serves it on
-`https://localhost:8082`. TLS certificates are auto-generated at runtime
-(or configured via `tls_cert_path`/`tls_key_path`).
+Open `https://localhost:8082` - done.
+
+### Docker
+
+```bash
+docker build -t docflow .
+docker run -p 8082:8082 \
+  -e DSCAN_SERVER_PUBLIC_URL=https://<server-ip>:8082 \
+  docflow
+```
+
+### Development
+
+```bash
+# Backend
+cd backend
+make build       # Build binary
+make run         # Start HTTPS server on port 8082
+
+# Frontend (development)
+cd frontend/dokumentenscanner
+npm install
+npm run dev      # Dev server with hot reload
+```
+
+## Build & Deploy
 
 Cross-compile for Linux:
 
@@ -74,15 +136,9 @@ make release-linux   # -> backend/docflow-linux-amd64
 
 ```bash
 cd backend
-
-# Build frontend + embed
-make frontend-build
-
-# Compile everything
-make all
-
-# Start server
-./server
+make frontend-build   # Build frontend + embed (needed once)
+make all              # Lint + test + build
+./server              # Start server
 ```
 
 ### Deployment (single binary)
@@ -91,10 +147,6 @@ make all
 2. Start it: `./docflow` - a commented `config.yaml` is auto-created on first start
 3. Edit `config.yaml` (or use `DSCAN_*` env vars / CLI flags), restart
 4. Open `https://<host>:8082`, accept the self-signed certificate warning
-
-See [map.md](map.md) for the architecture overview and
-[docs/manual.md](docs/manual.md) / [docs/manual.en.md](docs/manual.en.md)
-for the user manual (German / English).
 
 ## API Reference
 
@@ -186,6 +238,15 @@ Use with `--config backend/config/config.prod.yaml` or copy to `/etc/docflow/con
 - **Privacy Logging** - Access logs contain no IP addresses and no query strings
 - **Origin Check** - Configurable allowed origins
 
+## Documentation
+
+| Document | Content |
+|----------|---------|
+| [docs/manual.md](docs/manual.md) / [docs/manual.en.md](docs/manual.en.md) | User & operator manual (German / English) with diagrams, troubleshooting and hosting guide |
+| [map.md](map.md) | Architecture overview, data flow, performance |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines |
+
 ## Testing
 
 ```bash
@@ -198,7 +259,7 @@ cd frontend/dokumentenscanner && npm run test:unit -- --run
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 

@@ -11,10 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: https://gitea.com/actions/checkout@v4
+        uses: actions/checkout@v4
 
       - name: Set up Node
-        uses: https://gitea.com/actions/setup-node@v4
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
 
@@ -28,7 +28,7 @@ jobs:
         working-directory: backend
 
       - name: Set up Go
-        uses: https://gitea.com/actions/setup-go@v5
+        uses: actions/setup-go@v5
         with:
           go-version: '1.26'
 
@@ -60,10 +60,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: https://gitea.com/actions/checkout@v4
+        uses: actions/checkout@v4
 
       - name: Set up Node
-        uses: https://gitea.com/actions/setup-node@v4
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
