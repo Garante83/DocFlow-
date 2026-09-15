@@ -7,12 +7,28 @@ Detail: [README.md](../README.md) "Configuration", Build-Kommandos:
 
 ---
 
+## Inhalt
+
+1. [Was ist DocFlow?](#1-was-ist-docflow)
+2. [Kurzanleitung: Der Workflow](#2-kurzanleitung-der-workflow)
+3. [Installation & Start](#3-installation--start)
+4. [Konfiguration](#4-konfiguration)
+5. [Sicherheit & Datenschutz](#5-sicherheit--datenschutz)
+6. [API-Referenz](#6-api-referenz)
+7. [Fehlerbehebung](#7-fehlerbehebung)
+8. [Betrieb im Internet (Hosting)](#8-betrieb-im-internet-hosting)
+9. [Grenzen des Systems](#9-grenzen-des-systems)
+
+---
+
 ## 1. Was ist DocFlow?
 
 DocFlow ist ein web-basierter Dokumentenscanner: Der Desktop zeigt einen
-QR-Code, das Handy verbindet sich über das lokale Netzwerk, macht Fotos und
-lädt sie hoch - der Server erzeugt daraus ein mehrseitiges PDF. Alles ohne
-Cloud, ohne E-Mail, ohne Installation auf dem Handy.
+QR-Code, das Handy verbindet sich, macht Fotos und lädt sie hoch - der
+Server erzeugt daraus ein mehrseitiges PDF. Alles ohne Cloud, ohne E-Mail,
+ohne Installation auf dem Handy. Standard läuft die Verbindung über das
+lokale Netzwerk; betrieben wird eine **eigene Instanz** - im LAN genau
+so wie auf einem selbst gehosteten Server (Kapitel 8).
 
 | Feature | Beschreibung |
 |---------|--------------|
@@ -390,7 +406,8 @@ rate_limit:
 
 DocFlow ist Privacy-by-design: Dokumente und Bilder existieren ausschließlich
 im Arbeitsspeicher, es wird nichts auf die Festplatte geschrieben und nichts
-irgendwohin gesendet - außer an die eigenen Geräte im LAN.
+gesendet - außer an die Geräte, die sich selbst mit der Instanz verbinden.
+Bei Betrieb im Internet gelten zusätzlich die Hinweise in Kapitel 8.
 
 | Massnahme | Umsetzung |
 |-----------|-----------|
@@ -486,11 +503,62 @@ WebSocket-Events (nach erfolgreicher Auth-Nachricht):
 
 ---
 
-## 8. Grenzen des Systems
+## 8. Betrieb im Internet (Hosting)
+
+DocFlow ist nicht auf das LAN beschränkt. Die Sicherheitsmechanismen
+(Kapitel 5) - Rate-Limiting, constant-time PIN-Vergleich mit Sperrlogik,
+WebSocket-Origin-Check, Security-Header, Upload-Begrenzung und
+Privacy-Logging - sind genau dafür da, dass die Instanz auch öffentlich
+erreichbar betrieben werden kann, ohne zu einem offenen Briefkasten zu
+werden.
+
+### Härtungs-Checkliste für öffentliche Instanzen
+
+| Massnahme | Umsetzung |
+|-----------|-----------|
+| Echtes TLS-Zertifikat | `server.tls_cert_path`/`tls_key_path` setzen (z.B. Let's Encrypt) statt des automatisch generierten Selbstsigniert-Zertifikats |
+| Port | `DSCAN_SERVER_PORT=443` bzw. das Profil `backend/config/config.prod.yaml` als Ausgangspunkt nutzen |
+| Private IPs sperren | `DSCAN_WEB_SOCKET_ALLOW_PRIVATE_IPS=false` - WebSocket-Verbindungen aus privaten Adressräumen ablehnen |
+| Origins fest nadeln | `DSCAN_WEB_SOCKET_ALLOWED_ORIGINS` auf die öffentliche Domain setzen (Default erlaubt nur localhost) |
+| Rate-Limiting prüfen | Für öffentliche Instanzen ggf. strenger (`DSCAN_RATE_LIMIT_MAX_REQUESTS`) |
+| Dateigrößen deckeln | `DSCAN_UPLOAD_MAX_FILE_SIZE_MB` moderat halten, um Missbrauch zu erschweren |
+| Reverse-Proxy optional | nginx/Caddy vorschalten (Terminierung, zusätzliche Limits); Proxy darf die WebSocket-Verbindung nicht umbrechen |
+
+Ohne diese Härtung läuft die Instanz mit den sicheren Defaults - die
+sind aber für LAN-Betrieb kalibriert (z.B. `allow_private_ips: true`,
+localhost-Origins).
+
+### Verantwortung & Haftung
+
+DocFlow ist ein Werkzeug: Das Projekt stellt die Software bereit und
+dokumentiert, wie man sie sicher betreibt. Für den **Betrieb einer
+Instanz und deren Inhalt** liegt die Verantwortung vollständig beim
+Betreiber - inklusive geltender Rechtslagen (z.B. DSGVO, Impressumspflicht,
+Hosterhaftung). Das Projekt selbst übernimmt dafür keine Verantwortung,
+keine Haftung für hochgeladene Inhalte und keine Gewähr für die
+Rechtskonformität einer konkreten Installation.
+
+Konsequenzen für Betreiber:
+
+- Wer eine Instanz öffentlich betreibt, ist deren Betreiber im rechtlichen
+  Sinne und sollte Impressum/Datenschutzerklärung bereitstellen
+- Da Inhalte nur im RAM leben und nach dem Download gelöscht werden, ist
+  die Datenminimierung technisch gegeben - die DSGVO-Pflichten zur
+  Löschung lassen sich damit leicht erfüllen (siehe [PRIVACY.md](PRIVACY.md))
+- Missbrauch (illegale Inhalte) lässt sich technisch nicht vollständig
+  ausschließen; wer das Risiko nicht tragen will, betreibt die Instanz nur
+  im LAN oder hinter einer Anmeldung (z.B. Reverse-Proxy mit Basic Auth)
+
+---
+
+## 9. Grenzen des Systems
 
 - Bis zu 20 Seiten pro Session und 10 MB pro Bild (konfigurierbar)
 - JPEG-Qualität 85% im PDF (konfigurierbar)
 - Single-Instance-Betrieb: Sessions liegen im RAM, ein Neustart verwirft alle
-  laufenden Sessions
-- Konzipiert für kleine Gruppen im lokalen Netzwerk, nicht für
-  Multi-Server-Betrieb
+  laufenden Sessions; kein Multi-Server-/Cluster-Betrieb
+- Keine Benutzerkonten: Die Zugangskontrolle läuft über Session + PIN;
+  wer dauerhaft geschlossene Instanzen braucht, kapselt das dahinter
+  (z.B. Reverse-Proxy-Auth)
+- Dokumentiert und getestet ist der LAN-Betrieb; der öffentliche Betrieb
+  ist konzeptionell vorgesehen (Kapitel 8), aber vom Betreiber zu härten

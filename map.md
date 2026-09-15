@@ -10,7 +10,7 @@ commands are in [AGENTS.md](AGENTS.md), configuration in [README.md](README.md).
 
 ### Was ist DocFlow?
 
-Eine Web-Anwendung zum Übertragen von Dokumenten zwischen **Desktop** und **Mobilgerät** über das lokale Netzwerk — ohne Cloud, ohne E-Mail.
+Eine Web-Anwendung zum Übertragen von Dokumenten zwischen **Desktop** und **Mobilgerät** — ohne Cloud, ohne E-Mail. Standard-Betrieb im lokalen Netzwerk; öffentlicher Betrieb einer eigenen Instanz ist vorgesehen (Härtungs-Checkliste und Betreiberverantwortung: `docs/manual.md`, Kapitel 8).
 
 | Feature | Beschreibung |
 |---------|--------------|
