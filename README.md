@@ -93,7 +93,8 @@ make all
 4. Open `https://<host>:8082`, accept the self-signed certificate warning
 
 See [map.md](map.md) for the architecture overview and
-[docs/manual.md](docs/manual.md) for the user manual.
+[docs/manual.md](docs/manual.md) / [docs/manual.en.md](docs/manual.en.md)
+for the user manual (German / English).
 
 ## API Reference
 

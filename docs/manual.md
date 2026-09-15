@@ -1,7 +1,8 @@
 # DocFlow - Benutzerhandbuch
 
 *Stand: 2026-09-15. Dieses Handbuch ist die Quell-Dokumentation für Nutzer
-und Betreiber. Architektur-Details: [map.md](../map.md), Konfiguration im
+und Betreiber. Englische Fassung: [manual.en.md](manual.en.md).
+Architektur-Details: [map.md](../map.md), Konfiguration im
 Detail: [README.md](../README.md) "Configuration", Build-Kommandos:
 [AGENTS.md](../AGENTS.md).*
 
